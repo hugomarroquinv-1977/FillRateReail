@@ -34,8 +34,8 @@ INSUMOS_PATH = Path("Insumos")
 # Carpeta de archivos cargados por el usuario (temporal, puede ser efímera en Render)
 CARGA_TEMPORAL_PATH = Path("datos") / "carga_temporal"
 
-# Patrón para nombres de archivo: Pedido DD-mm-YYYY.xlsx
-PATRON_ARCHIVO_PEDIDO = re.compile(r"^Pedido (\d{2})-(\d{2})-(\d{4})\.xlsx$")
+# Patrón para nombres de archivo: Pedido DD-mm-YYYY.xlsx o Pedido DD-mm-YY.xlsx
+PATRON_ARCHIVO_PEDIDO = re.compile(r"^Pedido (\d{2})-(\d{2})-(\d{2}|\d{4})\.xlsx$")
 
 
 def asegurar_carpeta_carga_temporal() -> Path:
@@ -45,12 +45,17 @@ def asegurar_carpeta_carga_temporal() -> Path:
 
 
 def interpretar_fecha_nombre_archivo(nombre_archivo: str) -> Optional[datetime]:
-    """Interpreta la fecha de un archivo tipo Pedido DD-mm-YYYY.xlsx."""
+    """Interpreta la fecha de un archivo tipo Pedido DD-mm-YYYY.xlsx o Pedido DD-mm-YY.xlsx."""
     match = PATRON_ARCHIVO_PEDIDO.match(nombre_archivo)
     if not match:
         return None
 
     dia, mes, ano = int(match.group(1)), int(match.group(2)), int(match.group(3))
+
+    # Si el año tiene 2 dígitos, asumir 2000+XX (ej: 26 -> 2026)
+    if ano < 100:
+        ano = 2000 + ano
+
     try:
         return datetime(ano, mes, dia)
     except ValueError:

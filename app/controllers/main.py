@@ -135,11 +135,11 @@ def subir_archivo():
     if archivo.filename == "":
         return jsonify({"error": "Nombre de archivo vacío"}), 400
 
-    # Validar nombre del archivo: Pedido DD-mm-YYYY.xlsx
+    # Validar nombre del archivo: Pedido DD-mm-YYYY.xlsx o Pedido DD-mm-YY.xlsx
     nombre_seguro = secure_filename(archivo.filename)
     if not PATRON_ARCHIVO_PEDIDO.match(nombre_seguro):
         return jsonify({
-            "error": "Nombre de archivo inválido. Debe ser: Pedido DD-mm-YYYY.xlsx (ej: Pedido 07-11-2026.xlsx)"
+            "error": "Nombre de archivo inválido. Debe ser: Pedido DD-mm-YYYY.xlsx o Pedido DD-mm-YY.xlsx (ej: Pedido 07-11-2026.xlsx o Pedido 07-11-26.xlsx)"
         }), 400
 
     try:
