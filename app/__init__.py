@@ -25,4 +25,13 @@ def create_app() -> Flask:
     app.register_blueprint(main_bp)
     app.register_blueprint(ia_bp, url_prefix="/ia")
 
+    @app.after_request
+    def evitar_cache(response):
+        """Evita que el navegador muestre datos cacheados tras subir un archivo."""
+        if response.mimetype == "text/html":
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
     return app

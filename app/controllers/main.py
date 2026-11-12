@@ -94,12 +94,13 @@ def analisis_categoria_view():
 @main_bp.route("/api/actualizar", methods=["POST"])
 def actualizar_analisis():
     """Endpoint para actualizar el análisis diario.
-    Lee nuevamente los archivos de insumos/ y devuelve los datos actualizados.
+    Relee los archivos de Insumos/ y de la carga temporal, y devuelve los datos actualizados.
     """
     from app.services.analisis_diario import (
         obtener_estado_ultima_fecha,
         obtener_estado_mes_ano,
         obtener_analisis_categoria,
+        listar_archivos_disponibles,
     )
     from datetime import datetime
 
@@ -109,12 +110,15 @@ def actualizar_analisis():
     estado_mes = obtener_estado_mes_ano(ahora.month, ahora.year)
     analisis_categoria = obtener_analisis_categoria()
 
-    return jsonify({
+    respuesta = jsonify({
         "estado_ultimo": estado_ultimo,
         "estado_mes": estado_mes,
         "analisis_categoria": analisis_categoria,
+        "archivos": listar_archivos_disponibles(),
         "timestamp": ahora.strftime("%d-%m-%Y %H:%M:%S"),
     })
+    respuesta.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return respuesta
 
 
 @main_bp.route("/subir-archivo", methods=["POST"])
@@ -135,26 +139,35 @@ def subir_archivo():
     if archivo.filename == "":
         return jsonify({"error": "Nombre de archivo vacío"}), 400
 
-    nombre_original = archivo.filename
+    nombre_original = archivo.filename.strip()
 
     # Validar nombre del archivo original: Pedido DD-mm-YYYY.xlsx o Pedido DD-mm-YY.xlsx
     if not PATRON_ARCHIVO_PEDIDO.match(nombre_original):
         return jsonify({
-            "error": "Nombre de archivo inválido. Debe ser: Pedido DD-mm-YYYY.xlsx o Pedido DD-mm-YY.xlsx (ej: Pedido 07-11-2026.xlsx o Pedido 07-11-26.xlsx)"
+            "error": "Nombre de archivo inválido. Debe ser: Pedido DD-mm-YYYY.xlsx o Pedido DD-mm-YY.xlsx (ej: Pedido 09-11-2026.xlsx o Pedido 09-11-26.xlsx)"
         }), 400
-
-    # Aplicar secure_filename solo para guardar en disco (evita caracteres peligrosos)
-    nombre_seguro = secure_filename(nombre_original)
 
     try:
         contenido = archivo.read()
-        ruta_guardada = guardar_archivo_cargado(contenido, nombre_seguro)
+        # guardar_archivo_cargado normaliza el nombre a 'Pedido DD-mm-YYYY.xlsx'
+        ruta_guardada = guardar_archivo_cargado(contenido, nombre_original)
 
         return jsonify({
             "exito": True,
-            "mensaje": f"Archivo '{nombre_seguro}' subido correctamente",
-            "archivo": nombre_seguro,
-            "ruta": str(ruta_guardada),
+            "mensaje": f"Archivo '{ruta_guardada.name}' cargado correctamente",
+            "archivo": ruta_guardada.name,
         })
     except Exception as e:
         return jsonify({"error": f"Error al guardar archivo: {str(e)}"}), 500
+
+
+@main_bp.route("/api/archivos", methods=["GET"])
+def api_archivos():
+    """Devuelve la lista de archivos de pedidos detectados por la aplicación."""
+    from app.services.analisis_diario import listar_archivos_disponibles
+
+    archivos = listar_archivos_disponibles()
+    return jsonify({
+        "total": len(archivos),
+        "archivos": archivos,
+    })

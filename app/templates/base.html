@@ -276,6 +276,29 @@
             font-weight: 600;
         }
 
+        /* Aviso de archivo en uso */
+        .aviso-archivo {
+            background: #eef2ff;
+            border-left: 4px solid #1f3864;
+            padding: 10px 14px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #1f2937;
+            margin-bottom: 18px;
+        }
+
+        .etiqueta-origen {
+            display: inline-block;
+            background: #1f3864;
+            color: #fff;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 6px;
+            text-transform: uppercase;
+        }
+
         /* Botones */
         .btn {
             background-color: #1f3864;
@@ -408,6 +431,7 @@
 
     <script>
         // Función para actualizar análisis diario (llamada al botón)
+        // Relee los archivos del servidor y recarga la página para mostrar los datos vigentes.
         function actualizarAnalisis() {
             var btn = document.getElementById('btn-actualizar');
             if (btn) {
@@ -420,23 +444,23 @@
                 headers: {
                     'Content-Type': 'application/json',
                 },
+                cache: 'no-store',
             })
             .then(response => response.json())
             .then(data => {
+                var fecha = (data.estado_ultimo && data.estado_ultimo.fecha) ? data.estado_ultimo.fecha : 'N/A';
+                var total = data.archivos ? data.archivos.length : 0;
                 console.log('Datos actualizados:', data);
-                if (data.estado_ultimo) {
-                    document.getElementById('fill-rate-pct').textContent = data.estado_ultimo.fill_rate_pct + ' %';
-                    document.getElementById('total-pedido').textContent = data.estado_ultimo.total_pedido;
-                    document.getElementById('total-asignado').textContent = data.estado_ultimo.total_asignado;
-                }
-                btn.innerHTML = '🔄 Actualizar Análisis Diario';
-                btn.disabled = false;
-                alert('Análisis actualizado correctamente. Última fecha: ' + (data.estado_ultimo ? data.estado_ultimo.fecha : 'N/A'));
+                alert('Análisis actualizado. Última fecha: ' + fecha + ' · Archivos detectados: ' + total);
+                // Recargar sin caché para mostrar los datos del servidor
+                window.location.reload(true);
             })
             .catch(error => {
                 console.error('Error:', error);
-                btn.innerHTML = '🔄 Actualizar Análisis Diario';
-                btn.disabled = false;
+                if (btn) {
+                    btn.innerHTML = '🔄 Actualizar Análisis Diario';
+                    btn.disabled = false;
+                }
                 alert('Error al actualizar el análisis.');
             });
         }

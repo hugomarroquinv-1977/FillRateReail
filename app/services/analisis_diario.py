@@ -28,14 +28,22 @@ from typing import Optional
 
 import pandas as pd
 
+# Raíz del proyecto (independiente del directorio de trabajo del proceso)
+BASE_DIR = Path(__file__).resolve().parents[2]
+
 # Carpeta de insumos (solo lectura, nunca se modifica)
-INSUMOS_PATH = Path("Insumos")
+INSUMOS_PATH = BASE_DIR / "Insumos"
 
 # Carpeta de archivos cargados por el usuario (temporal, puede ser efímera en Render)
-CARGA_TEMPORAL_PATH = Path("datos") / "carga_temporal"
+CARGA_TEMPORAL_PATH = BASE_DIR / "datos" / "carga_temporal"
 
-# Patrón para nombres de archivo: Pedido DD-mm-YYYY.xlsx o Pedido DD-mm-YY.xlsx
-PATRON_ARCHIVO_PEDIDO = re.compile(r"^Pedido (\d{2})-(\d{2})-(\d{2}|\d{4})\.xlsx$")
+# Patrón para nombres de archivo de pedidos.
+# Acepta: "Pedido 09-11-2026.xlsx", "Pedido 9-11-26.xlsx", "Pedido_09-11-2026.xlsx"
+# (el guion bajo se admite porque secure_filename() reemplaza los espacios por "_").
+PATRON_ARCHIVO_PEDIDO = re.compile(
+    r"^Pedido[ _](\d{1,2})-(\d{1,2})-(\d{2}|\d{4})\.xlsx$",
+    re.IGNORECASE,
+)
 
 
 def asegurar_carpeta_carga_temporal() -> Path:
@@ -46,7 +54,7 @@ def asegurar_carpeta_carga_temporal() -> Path:
 
 def interpretar_fecha_nombre_archivo(nombre_archivo: str) -> Optional[datetime]:
     """Interpreta la fecha de un archivo tipo Pedido DD-mm-YYYY.xlsx o Pedido DD-mm-YY.xlsx."""
-    match = PATRON_ARCHIVO_PEDIDO.match(nombre_archivo)
+    match = PATRON_ARCHIVO_PEDIDO.match(nombre_archivo.strip())
     if not match:
         return None
 
@@ -62,42 +70,96 @@ def interpretar_fecha_nombre_archivo(nombre_archivo: str) -> Optional[datetime]:
         return None
 
 
+def nombre_canonico_archivo(fecha: datetime) -> str:
+    """Devuelve el nombre normalizado: 'Pedido DD-mm-YYYY.xlsx'."""
+    return f"Pedido {fecha.day:02d}-{fecha.month:02d}-{fecha.year}.xlsx"
+
+
 def listar_archivos_pedido(
     carpeta_insumos: Path = INSUMOS_PATH,
     carpeta_carga: Path = CARGA_TEMPORAL_PATH,
 ) -> list[tuple[datetime, Path]]:
-    """Lista todos los archivos Pedido DD-mm-YYYY.xlsx con su fecha interpretada.
+    """Lista todos los archivos Pedido con su fecha interpretada.
 
-    Busca en ambas carpetas: insumos/ (repositorio) y datos/carga_temporal/ (subidos por usuario).
+    Busca en ambas carpetas: Insumos/ (repositorio) y datos/carga_temporal/
+    (archivos subidos por el usuario).
+
+    Si una misma fecha existe en ambas carpetas, se conserva el archivo
+    subido por el usuario (carga temporal), que es el más reciente.
 
     Ordena por fecha descendente (más reciente primero).
     """
-    archivos_con_fecha = []
+    archivos_por_fecha: dict[datetime, Path] = {}
 
+    # Primero Insumos/, luego carga temporal (esta última sobrescribe)
     for carpeta in [carpeta_insumos, carpeta_carga]:
         if not carpeta.exists():
             continue
-        for archivo in carpeta.glob("Pedido *.xlsx"):
+        for archivo in carpeta.iterdir():
+            if not archivo.is_file():
+                continue
             fecha = interpretar_fecha_nombre_archivo(archivo.name)
             if fecha is not None:
-                archivos_con_fecha.append((fecha, archivo))
+                archivos_por_fecha[fecha] = archivo
 
+    archivos_con_fecha = list(archivos_por_fecha.items())
     archivos_con_fecha.sort(key=lambda x: x[0], reverse=True)
     return archivos_con_fecha
+
+
+def listar_archivos_disponibles(
+    carpeta_insumos: Path = INSUMOS_PATH,
+    carpeta_carga: Path = CARGA_TEMPORAL_PATH,
+) -> list[dict]:
+    """Devuelve información legible de los archivos detectados (para diagnóstico)."""
+    resultado = []
+    for fecha, ruta in listar_archivos_pedido(carpeta_insumos, carpeta_carga):
+        try:
+            origen = "Carga web" if ruta.parent.resolve() == carpeta_carga.resolve() else "Insumos"
+        except OSError:
+            origen = "Insumos"
+        resultado.append({
+            "fecha": fecha.strftime("%d-%m-%Y"),
+            "archivo": ruta.name,
+            "origen": origen,
+        })
+    return resultado
 
 
 def guardar_archivo_cargado(contenido: bytes, nombre_archivo: str) -> Path:
     """Guarda un archivo subido por el usuario en la carpeta temporal.
 
+    El archivo se guarda SIEMPRE con el nombre canónico
+    'Pedido DD-mm-YYYY.xlsx', para que el lector lo reconozca sin importar
+    cómo lo haya nombrado el navegador.
+
     Args:
         contenido: Bytes del archivo.
-        nombre_archivo: Nombre del archivo (debe ser Pedido DD-mm-YYYY.xlsx).
+        nombre_archivo: Nombre original del archivo (Pedido DD-mm-YYYY.xlsx).
 
     Returns:
         Ruta del archivo guardado.
     """
+    fecha = interpretar_fecha_nombre_archivo(nombre_archivo)
+    if fecha is None:
+        raise ValueError(
+            "Nombre de archivo inválido. Debe ser 'Pedido DD-mm-YYYY.xlsx' "
+            "(ej: Pedido 09-11-2026.xlsx)."
+        )
+
     carpeta = asegurar_carpeta_carga_temporal()
-    ruta = carpeta / nombre_archivo
+    nombre_final = nombre_canonico_archivo(fecha)
+    ruta = carpeta / nombre_final
+
+    # Eliminar variantes previas de la misma fecha (p. ej. con "_" o año de 2 dígitos)
+    for existente in carpeta.iterdir():
+        if existente.is_file() and existente != ruta:
+            if interpretar_fecha_nombre_archivo(existente.name) == fecha:
+                try:
+                    existente.unlink()
+                except OSError:
+                    pass
+
     with open(ruta, "wb") as f:
         f.write(contenido)
     return ruta
@@ -144,20 +206,13 @@ def obtener_archivo_por_fecha(
 ) -> Optional[pd.DataFrame]:
     """Lee el archivo Pedido para una fecha específica.
 
-    Busca primero en la carpeta de carga temporal (archivos subidos por usuario)
-    y luego en la carpeta de insumos.
+    Busca en ambas carpetas aceptando cualquier variante del nombre.
     """
-    nombre_esperado = f"Pedido {fecha_objetivo.day:02d}-{fecha_objetivo.month:02d}-{fecha_objetivo.year}.xlsx"
+    objetivo = datetime(fecha_objetivo.year, fecha_objetivo.month, fecha_objetivo.day)
 
-    # Buscar primero en carga temporal
-    ruta = carpeta_carga / nombre_esperado
-    if ruta.exists():
-        return leer_archivo_excel(ruta)
-
-    # Luego en insumos
-    ruta = carpeta_insumos / nombre_esperado
-    if ruta.exists():
-        return leer_archivo_excel(ruta)
+    for fecha, ruta in listar_archivos_pedido(carpeta_insumos, carpeta_carga):
+        if fecha == objetivo:
+            return leer_archivo_excel(ruta)
 
     return None
 
@@ -365,6 +420,11 @@ def obtener_estado_ultima_fecha(
     fecha, ruta, df = resultado
     estadisticas = extraer_estadisticas_archivo(df)
 
+    try:
+        origen = "Carga web" if ruta.parent.resolve() == carpeta_carga.resolve() else "Insumos"
+    except OSError:
+        origen = "Insumos"
+
     # Agrupación por Centro de Carne (columna C, índice 2)
     datos_por_centro = []
     if not df.empty and df.shape[1] > 2:
@@ -387,6 +447,9 @@ def obtener_estado_ultima_fecha(
     return {
         "fecha": fecha.strftime("%d-%m-%Y"),
         "fecha_objeto": fecha,
+        "archivo": ruta.name,
+        "origen": origen,
+        "total_archivos": len(listar_archivos_pedido(carpeta_insumos, carpeta_carga)),
         **estadisticas,
         "datos_por_centro": datos_por_centro,
     }

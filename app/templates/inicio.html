@@ -31,6 +31,18 @@
         <div id="mensaje-subida" style="margin-left: 10px; font-size: 13px;"></div>
     </div>
 
+    <!-- Archivo en uso / diagnóstico -->
+    {% if estado_ultimo %}
+    <div class="aviso-archivo">
+        <strong>Archivo en uso:</strong>
+        {{ estado_ultimo['archivo'] }}
+        <span class="etiqueta-origen">{{ estado_ultimo['origen'] }}</span>
+        &nbsp;·&nbsp; <strong>Fecha del reporte:</strong> {{ estado_ultimo['fecha'] }}
+        &nbsp;·&nbsp; <strong>Archivos detectados:</strong> {{ estado_ultimo['total_archivos'] }}
+        <a href="{{ url_for('main.api_archivos') }}" target="_blank" style="margin-left: 8px;">ver lista</a>
+    </div>
+    {% endif %}
+
     {% if estado_ultimo %}
     <!-- Contadores grandes -->
     <div class="contadores">
@@ -380,10 +392,10 @@
                 // Resetear input
                 input.value = "";
 
-                // Recargar la página después de 1.5 segundos para mostrar los nuevos datos
+                // Recargar sin caché para mostrar los nuevos datos
                 setTimeout(() => {
-                    location.reload();
-                }, 1500);
+                    window.location.reload(true);
+                }, 800);
             } else {
                 mensajeDiv.innerHTML = "❌ " + data.error;
                 mensajeDiv.style.color = "#dc2626";
