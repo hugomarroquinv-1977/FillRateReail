@@ -1,0 +1,40 @@
+# Python-generated files
+__pycache__/
+*.py[cod]
+*$py.class
+build/
+dist/
+wheels/
+*.egg-info/
+*.egg
+*.whl
+
+# Virtual environments
+.venv/
+.env
+.venv*
+env/
+venv/
+
+# Configuration sensible
+.env.local
+.env.*.local
+
+# Datos de la aplicación (no subir archivos comerciales)
+datos/
+reportes/
+*.db
+*.sqlite
+*.sqlite3
+instance/
+
+# Flask
+instance/
+.webassets-cache
+
+# Registros de importación
+datos/procesados.json
+
+# OS
+.DS_Store
+Thumbs.db

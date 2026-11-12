@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}FillRateRetail - Tablero Gerencial{% endblock %}
+
+{% block header_title %}FillRateRetail{% endblock %}
+{% block header_subtitle %}Tablero Gerencial - Análisis de Fill Rate y Abastecimiento Comercial{% endblock %}
+
+{% block alerta %}
+{% if alerta_ia_no_disponible %}
+<div class="alert-banner">
+    ⚠️ {{ alerta_ia_no_disponible }}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block contenido %}
+<div class="contadores">
+    <div class="contador rojo">
+        <div class="etiqueta">Fill Rate General</div>
+        <div class="valor">{{ fill_rate_general }} %</div>
+        <div class="subvalor">Cumplimiento consolidado de pedidos</div>
+    </div>
+    <div class="contador rojo">
+        <div class="etiqueta">Kilos Faltantes Totales</div>
+        <div class="valor">{{ kilos_faltantes_totales }} kg</div>
+        <div class="subvalor">Cantidad no entregada</div>
+    </div>
+    <div class="contador amarillo">
+        <div class="etiqueta">Kilos Solicitados</div>
+        <div class="valor">{{ kilos_solicitados_totales }} kg</div>
+        <div class="subvalor">Cantidad pedida en el período</div>
+    </div>
+    <div class="contador verde">
+        <div class="etiqueta">Kilos Entregados</div>
+        <div class="valor">{{ kilos_entregados_totales }} kg</div>
+        <div class="subvalor">Cantidad recibida en el período</div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="seccion-tabla">
+        <h2>Fill Rate por Categoría</h2>
+        <div class="filtro-tabla">
+            <label for="filtro-categoria">Filtrar categoría:</label>
+            <input type="text" id="filtro-categoria" placeholder="Escriba para filtrar..." data-filtro-input="filtro-categoria" data-filtro-tabla="tabla-categoria">
+        </div>
+        <table id="tabla-categoria">
+            <thead>
+                <tr>
+                    <th>Categoría</th>
+                    <th class="celda-numerica">Pedido kg</th>
+                    <th class="celda-numerica">Entrega kg</th>
+                    <th class="celda-numerica">Faltante kg</th>
+                    <th class="celda-numerica">Fill Rate %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in datos_por_categoria %}
+                <tr>
+                    <td>{{ fila.categoria }}</td>
+                    <td class="celda-numerica">{{ fila.pedido_kg }}</td>
+                    <td class="celda-numerica">{{ fila.entrega_kg }}</td>
+                    <td class="celda-numerica">{{ fila.faltante_kg }}</td>
+                    <td class="celda-numerica">{{ fila.fill_rate_pct }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if datos_por_categoria | length == 0 %}
+        <div class="texto-centrado">No hay datos de categoría disponibles.</div>
+        {% endif %}
+    </div>
+
+    <div class="seccion-tabla">
+        <h2>Fill Rate por Centro de Carne</h2>
+        <div class="filtro-tabla">
+            <label for="filtro-centro">Filtrar centro:</label>
+            <input type="text" id="filtro-centro" placeholder="Escriba para filtrar..." data-filtro-input="filtro-centro" data-filtro-tabla="tabla-centro">
+        </div>
+        <table id="tabla-centro">
+            <thead>
+                <tr>
+                    <th>Centro de Carne</th>
+                    <th class="celda-numerica">Pedido kg</th>
+                    <th class="celda-numerica">Entrega kg</th>
+                    <th class="celda-numerica">Faltante kg</th>
+                    <th class="celda-numerica">Fill Rate %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in datos_por_centro %}
+                <tr>
+                    <td>{{ fila.centro }}</td>
+                    <td class="celda-numerica">{{ fila.pedido_kg }}</td>
+                    <td class="celda-numerica">{{ fila.entrega_kg }}</td>
+                    <td class="celda-numerica">{{ fila.faltante_kg }}</td>
+                    <td class="celda-numerica">{{ fila.fill_rate_pct }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if datos_por_centro | length == 0 %}
+        <div class="texto-centrado">No hay datos de Centro de Carne disponibles.</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="seccion-tabla">
+    <h2>Productos con Faltantes Recurrentes</h2>
+    <div class="filtro-tabla">
+        <label for="filtro-recurrentes">Filtrar producto:</label>
+        <input type="text" id="filtro-recurrentes" placeholder="Escriba para filtrar..." data-filtro-input="filtro-recurrentes" data-filtro-tabla="tabla-recurrentes">
+    </div>
+    <table id="tabla-recurrentes">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Código</th>
+                <th>Categoría</th>
+                <th class="celda-numerica">Faltante Total kg</th>
+                <th class="celda-numerica">Días con Faltante</th>
+                <th>Prioridad</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for fila in datos_recurrentes %}
+            <tr>
+                <td>{{ fila.producto }}</td>
+                <td>{{ fila.codigo }}</td>
+                <td>{{ fila.categoria }}</td>
+                <td class="celda-numerica">{{ fila.faltante_total_kg }}</td>
+                <td class="celda-numerica">{{ fila.dias_con_faltante }}</td>
+                <td><span class="badge badge-alto">Alta</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if datos_recurrentes | length == 0 %}
+    <div class="texto-centrado">No se detectaron productos con faltantes recurrentes.</div>
+    {% endif %}
+</div>
+
+<div class="seccion-tabla">
+    <h2>Alertas del Agente de IA</h2>
+    {% if alertas_ia %}
+    <div class="filtro-tabla">
+        <label for="filtro-alertas">Filtrar alerta:</label>
+        <input type="text" id="filtro-alertas" placeholder="Escriba para filtrar..." data-filtro-input="filtro-alertas" data-filtro-tabla="tabla-alertas">
+    </div>
+    <table id="tabla-alertas">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Centro</th>
+                <th>Tipo</th>
+                <th>Prioridad</th>
+                <th>Recomendación</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for alerta in alertas_ia %}
+            <tr>
+                <td>{{ alerta.producto }}</td>
+                <td>{{ alerta.centro_carne }}</td>
+                <td>{{ alerta.tipo }}</td>
+                <td><span class="badge badge-{{ 'alto' if alerta.prioridad == 'Alta' else 'medio' if alerta.prioridad == 'Media' else 'bajo' }}">{{ alerta.prioridad }}</span></td>
+                <td>{{ alerta.recomendacion }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="texto-centrado">No hay alertas del agente de IA disponibles.</div>
+    {% endif %}
+</div>
+
+<div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+    <a href="{{ url_for('main.inicio') }}" class="btn btn-secundario">Actualizar Análisis</a>
+    <a href="#" class="btn">Descargar Excel</a>
+    <a href="#" class="btn">Descargar PDF</a>
+</div>
+{% endblock %}

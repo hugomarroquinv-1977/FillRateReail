@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}FillRateRetail - Tablero Gerencial{% endblock %}</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background-color: #1f3864;
+            color: white;
+            padding: 20px;
+            border-radius: 8px 8px 0 0;
+            margin-bottom: 20px;
+        }
+
+        header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .alert-banner {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        /* Contadores grandes del tablero */
+        .contadores {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .contador {
+            background: white;
+            border: 1px solid #d1d5db;
+            border-left: 5px solid #1f3864;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .contador.rojo { border-left-color: #dc2626; }
+        .contador.amarillo { border-left-color: #d97706; }
+        .contador.verde { border-left-color: #16a34a; }
+
+        .contador .etiqueta {
+            font-size: 13px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .contador .valor {
+            font-size: 32px;
+            font-weight: bold;
+            color: #111;
+            margin-bottom: 4px;
+        }
+
+        .contador .subvalor {
+            font-size: 14px;
+            color: #4b5563;
+        }
+
+        /* Tablas con filtro */
+        .seccion-tabla {
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .seccion-tabla h2 {
+            font-size: 18px;
+            color: #1f3864;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .filtro-tabla {
+            margin-bottom: 12px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filtro-tabla input {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 260px;
+        }
+
+        .filtro-tabla select {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .filtro-tabla label {
+            font-size: 13px;
+            color: #6b7280;
+            margin-right: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            background-color: #1f3864;
+            color: white;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+
+        tr:hover {
+            background-color: #f3f4f6;
+        }
+
+        .celda-numerica {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .badge-alto { background-color: #fee2e2; color: #991b1b; }
+        .badge-medio { background-color: #fef3c7; color: #92400e; }
+        .badge-bajo { background-color: #d1fae5; color: #065f46; }
+
+        .texto-centrado {
+            text-align: center;
+            color: #6b7280;
+            padding: 40px;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding: 20px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 12px;
+            color: #6b7280;
+            text-align: center;
+        }
+
+        .btn {
+            background-color: #1f3864;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background-color: #163053;
+        }
+
+        .btn-secundario {
+            background-color: #6b7280;
+        }
+
+        .btn-secundario:hover {
+            background-color: #4b5563;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            .contadores {
+                grid-template-columns: 1fr;
+            }
+            .filtro-tabla {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .filtro-tabla input,
+            .filtro-tabla select {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{% block header_title %}FillRateRetail{% endblock %}</h1>
+            <p>{% block header_subtitle %}Tablero Gerencial - Análisis de Fill Rate y Abastecimiento{% endblock %}</p>
+        </header>
+
+        {% block alerta %}{% endblock %}
+
+        {% block contenido %}{% endblock %}
+
+        <footer>
+            <p>FillRateRetail - Aplicación local de análisis de abastecimiento · División Retail · Montecillos</p>
+        </footer>
+    </div>
+
+    <script>
+        // Filtro simple de tabla en JavaScript nativo (sin librerías externas)
+        function filtrarTabla(inputId, tablaId) {
+            const input = document.getElementById(inputId);
+            const tabla = document.getElementById(tablaId);
+            if (!input || !tabla) return;
+
+            input.addEventListener('keyup', function() {
+                const filtro = input.value.toUpperCase();
+                const filas = tabla.getElementsByTagName('tr');
+                for (let i = 1; i < filas.length; i++) {
+                    const celdas = filas[i].getElementsByTagName('td');
+                    let coincidencia = false;
+                    for (let j = 0; j < celdas.length; j++) {
+                        if (celdas[j].textContent.toUpperCase().indexOf(filtro) > -1) {
+                            coincidencia = true;
+                            break;
+                        }
+                    }
+                    filas[i].style.display = coincidencia ? '' : 'none';
+                }
+            });
+        }
+
+        // Inicializar filtros definidos en data-filtro
+        document.querySelectorAll('[data-filtro]').forEach(function(element) {
+            const inputId = element.getAttribute('data-filtro-input');
+            const tablaId = element.getAttribute('data-filtro-tabla');
+            if (inputId && tablaId) {
+                filtrarTabla(inputId, tablaId);
+            }
+        });
+    </script>
+</body>
+</html>

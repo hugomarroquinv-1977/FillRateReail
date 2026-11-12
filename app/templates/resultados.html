@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}FillRateRetail - Resultados Detallados{% endblock %}
+
+{% block header_title %}FillRateRetail{% endblock %}
+{% block header_subtitle %}Resultados Detallados - Análisis de Fill Rate por Registro{% endblock %}
+
+{% block alerta %}
+{% if alerta_ia_no_disponible %}
+<div class="alert-banner">
+    ⚠️ {{ alerta_ia_no_disponible }}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block contenido %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h2 style="color: #1f3864;">Resultados Detallados por Registro</h2>
+    <a href="{{ url_for('main.inicio') }}" class="btn btn-secundario">← Volver al Tablero</a>
+</div>
+
+<div class="contadores">
+    <div class="contador">
+        <div class="etiqueta">Total Registros</div>
+        <div class="valor">{{ total_registros }}</div>
+        <div class="subvalor">Filas procesadas en el período</div>
+    </div>
+    <div class="contador rojo">
+        <div class="etiqueta">Registros con Faltante</div>
+        <div class="valor">{{ registros_con_faltante }}</div>
+        <div class="subvalor">Pedidos no entregados completamente</div>
+    </div>
+    <div class="contador">
+        <div class="etiqueta">Fill Rate Promedio</div>
+        <div class="valor">{{ fill_rate_promedio }} %</div>
+        <div class="subvalor">Promedio simple de registros válidos</div>
+    </div>
+    <div class="contador">
+        <div class="etiqueta">Kilos Faltantes Totales</div>
+        <div class="valor">{{ kilos_faltantes_totales }} kg</div>
+        <div class="subvalor">Suma de faltantes en kilogramos</div>
+    </div>
+</div>
+
+<div class="seccion-tabla">
+    <h2>Detalle de Registros</h2>
+    <div class="filtro-tabla">
+        <label for="filtro-registros">Filtrar por producto, categoría o centro:</label>
+        <input type="text" id="filtro-registros" placeholder="Escriba para filtrar..." data-filtro-input="filtro-registros" data-filtro-tabla="tabla-registros">
+        <label for="filtro-estado">Estado:</label>
+        <select id="filtro-estado" data-filtro-input="filtro-estado" data-filtro-tabla="tabla-registros">
+            <option value="todos">Todos</option>
+            <option value="con_faltante">Con faltante</option>
+            <option value="sin_faltante">Sin faltante</option>
+        </select>
+    </div>
+    <table id="tabla-registros">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Centro de Carne</th>
+                <th>Categoría</th>
+                <th>Producto</th>
+                <th class="celda-numerica">Pedido kg</th>
+                <th class="celda-numerica">Entrega kg</th>
+                <th class="celda-numerica">Faltante kg</th>
+                <th class="celda-numerica">Fill Rate %</th>
+                <th>Estado</th>
+                <th class="celda-numerica">Detalle</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for fila in datos_registros %}
+            <tr data-detalle='{{ fila.detalle_json | tojson | safe }}' onclick="mostrarDetalle(this)">
+                <td>{{ fila.fecha }}</td>
+                <td>{{ fila.centro_carne }}</td>
+                <td>{{ fila.categoria }}</td>
+                <td>{{ fila.producto }}</td>
+                <td class="celda-numerica">{{ fila.pedido_kg }}</td>
+                <td class="celda-numerica">{{ fila.entrega_kg }}</td>
+                <td class="celda-numerica">{{ fila.faltante_kg }}</td>
+                <td class="celda-numerica">{{ fila.fill_rate_pct }}</td>
+                <td><span class="badge {{ 'badge-alto' if fila.faltante_kg | int > 0 else 'badge-bajo' }}">{{ 'Con faltante' if fila.faltante_kg | int > 0 else 'Completo' }}</span></td>
+                <td class="celda-numerica">▶ Ver</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if datos_registros | length == 0 %}
+    <div class="texto-centrado">No hay registros disponibles para mostrar.</div>
+    {% endif %}
+</div>
+
+<!-- Panel de detalle por registro -->
+<div class="seccion-tabla" id="panel-detalle" style="display: none;">
+    <h2 id="detalle-titulo">Detalle del Registro</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px;">
+        <div class="contador">
+            <div class="etiqueta">Producto</div>
+            <div class="valor" id="det-producto">-</div>
+        </div>
+        <div class="contador">
+            <div class="etiqueta">Código</div>
+            <div class="valor" id="det-codigo">-</div>
+        </div>
+        <div class="contador">
+            <div class="etiqueta">Categoría</div>
+            <div class="valor" id="det-categoria">-</div>
+        </div>
+        <div class="contador">
+            <div class="etiqueta">Centro de Carne</div>
+            <div class="valor" id="det-centro">-</div>
+        </div>
+        <div class="contador">
+            <div class="etiqueta">Fecha</div>
+            <div class="valor" id="det-fecha">-</div>
+        </div>
+        <div class="contador">
+            <div class="etiqueta">Pedido kg</div>
+            <div class="valor" id="det-pedido">-</div>
+        </div>
+        <div class="contador">
+            <div class="etiqueta">Entrega kg</div>
+            <div class="valor" id="det-entrega">-</div>
+        </div>
+        <div class="contador rojo">
+            <div class="etiqueta">Faltante kg</div>
+            <div class="valor" id="det-faltante">-</div>
+        </div>
+        <div class="contador">
+            <div class="etiqueta">Fill Rate %</div>
+            <div class="valor" id="det-fillrate">-</div>
+        </div>
+        <div class="contador">
+            <div class="etiqueta">Estado</div>
+            <div class="valor" id="det-estado">-</div>
+        </div>
+    </div>
+
+    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;">
+        <h3 style="color: #1f3864; margin-bottom: 10px;">Observaciones</h3>
+        <p id="det-observaciones" style="color: #374151;"></p>
+    </div>
+
+    <button class="btn btn-secundario" onclick="ocultarDetalle()">Ocultar Detalle</button>
+</div>
+
+<script>
+    // Filtro de tabla por texto (misma función que base.html, aplicada a esta tabla)
+    function filtrarTabla(inputId, tablaId) {
+        const input = document.getElementById(inputId);
+        const tabla = document.getElementById(tablaId);
+        if (!input || !tabla) return;
+
+        input.addEventListener('keyup', function() {
+            const filtro = input.value.toUpperCase();
+            const filas = tabla.getElementsByTagName('tr');
+            for (let i = 1; i < filas.length; i++) {
+                const celdas = filas[i].getElementsByTagName('td');
+                let coincidencia = false;
+                for (let j = 0; j < celdas.length; j++) {
+                    if (celdas[j].textContent.toUpperCase().indexOf(filtro) > -1) {
+                        coincidencia = true;
+                        break;
+                    }
+                }
+                filas[i].style.display = coincidencia ? '' : 'none';
+            }
+        });
+    }
+
+    // Filtro por estado (con faltante / completo)
+    function filtrarPorEstado() {
+        const select = document.getElementById('filtro-estado');
+        const tabla = document.getElementById('tabla-registros');
+        if (!select || !tabla) return;
+
+        const valor = select.value;
+        const filas = tabla.getElementsByTagName('tr');
+
+        for (let i = 1; i < filas.length; i++) {
+            const celdas = filas[i].getElementsByTagName('td');
+            const celdaEstado = celdas[8]; // columna Estado
+            let mostrar = true;
+
+            if (valor === 'con_faltante') {
+                mostrar = celdaEstado.textContent.includes('Con faltante');
+            } else if (valor === 'sin_faltante') {
+                mostrar = celdaEstado.textContent.includes('Completo');
+            }
+
+            filas[i].style.display = mostrar ? '' : 'none';
+        }
+    }
+
+    // Mostrar detalle de un registro al hacer clic en la fila
+    function mostrarDetalle(fila) {
+        const datosJson = fila.getAttribute('data-detalle');
+        if (!datosJson) return;
+
+        const datos = JSON.parse(datosJson);
+
+        document.getElementById('panel-detalle').style.display = 'block';
+        document.getElementById('detalle-titulo').textContent = 'Detalle: ' + (datos.producto || '-');
+        document.getElementById('det-producto').textContent = datos.producto || '-';
+        document.getElementById('det-codigo').textContent = datos.codigo || '-';
+        document.getElementById('det-categoria').textContent = datos.categoria || '-';
+        document.getElementById('det-centro').textContent = datos.centro_carne || '-';
+        document.getElementById('det-fecha').textContent = datos.fecha || '-';
+        document.getElementById('det-pedido').textContent = datos.pedido_kg + ' kg';
+        document.getElementById('det-entrega').textContent = datos.entrega_kg + ' kg';
+        document.getElementById('det-faltante').textContent = datos.faltante_kg + ' kg';
+        document.getElementById('det-fillrate').textContent = datos.fill_rate_pct + ' %';
+        document.getElementById('det-estado').textContent = datos.faltante_kg > 0 ? 'Con faltante' : 'Completo';
+
+        const obs = [];
+        if (datos.faltante_kg > 0) {
+            obs.push('Este producto presenta un faltante de ' + datos.faltante_kg + ' kg.');
+        }
+        if (datos.fill_rate_pct < 80) {
+            obs.push('El cumplimiento está por debajo del 80 % (' + datos.fill_rate_pct + ' %).');
+        }
+        if (datos.fill_rate_pct >= 100) {
+            obs.push('Cumplimiento completo del pedido.');
+        }
+        if (obs.length === 0) {
+            obs.push('Registro sin observaciones críticas.');
+        }
+        document.getElementById('det-observaciones').textContent = obs.join(' ');
+    }
+
+    function ocultarDetalle() {
+        document.getElementById('panel-detalle').style.display = 'none';
+    }
+
+    // Inicializar filtros
+    document.addEventListener('DOMContentLoaded', function() {
+        filtrarTabla('filtro-registros', 'tabla-registros');
+
+        const selectEstado = document.getElementById('filtro-estado');
+        if (selectEstado) {
+            selectEstado.addEventListener('change', filtrarPorEstado);
+        }
+    });
+</script>
+{% endblock %}
