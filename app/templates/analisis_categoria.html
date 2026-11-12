@@ -17,17 +17,17 @@
 <div class="contadores">
     <div class="contador">
         <div class="etiqueta">Total Filas Globales</div>
-        <div class="valor">{{ analisis_categoria.total_filas_global }}</div>
+        <div class="valor">{{ analisis_categoria['total_filas_global'] }}</div>
         <div class="subvalor">Todos los archivos</div>
     </div>
     <div class="contador">
         <div class="etiqueta">Total Faltante Global</div>
-        <div class="valor">{{ analisis_categoria.total_faltante_global }}</div>
+        <div class="valor">{{ analisis_categoria['total_faltante_global'] }}</div>
         <div class="subvalor">Pedido − Asignado</div>
     </div>
     <div class="contador">
         <div class="etiqueta">Total Sin Asignar</div>
-        <div class="valor">{{ analisis_categoria.total_sin_asignar_global }}</div>
+        <div class="valor">{{ analisis_categoria['total_sin_asignar_global'] }}</div>
         <div class="subvalor">Columna J</div>
     </div>
 </div>
@@ -55,17 +55,17 @@
             </tr>
         </thead>
         <tbody>
-            {% for fila in analisis_categoria.total_por_categoria %}
+            {% for fila in analisis_categoria['total_por_categoria'] %}
             <tr>
-                <td>{{ fila.categoria }}</td>
-                <td class="celda-numerica">{{ fila.total_filas }}</td>
-                <td class="celda-numerica">{{ fila.pct_filas }} %</td>
-                <td class="celda-numerica">{{ fila.total_pedido }}</td>
-                <td class="celda-numerica">{{ fila.total_asignado }}</td>
-                <td class="celda-numerica">{{ fila.total_faltante }}</td>
-                <td class="celda-numerica">{{ fila.pct_faltante }} %</td>
-                <td class="celda-numerica">{{ fila.total_sin_asignar }}</td>
-                <td class="celda-numerica">{{ fila.pct_sin_asignar }} %</td>
+                <td>{{ fila['categoria'] }}</td>
+                <td class="celda-numerica">{{ fila['total_filas'] }}</td>
+                <td class="celda-numerica">{{ fila['pct_filas'] }} %</td>
+                <td class="celda-numerica">{{ fila['total_pedido'] }}</td>
+                <td class="celda-numerica">{{ fila['total_asignado'] }}</td>
+                <td class="celda-numerica">{{ fila['total_faltante'] }}</td>
+                <td class="celda-numerica">{{ fila['pct_faltante'] }} %</td>
+                <td class="celda-numerica">{{ fila['total_sin_asignar'] }}</td>
+                <td class="celda-numerica">{{ fila['pct_sin_asignar'] }} %</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -91,18 +91,18 @@
             </tr>
         </thead>
         <tbody>
-            {% for fila in analisis_categoria.parciales_por_categoria %}
+            {% for fila in analisis_categoria['parciales_por_categoria'] %}
             <tr>
-                <td>{{ fila.categoria }}</td>
-                <td class="celda-numerica">{{ fila.filas_con_faltante }}</td>
-                <td class="celda-numerica">{{ fila.pct_filas_faltante }} %</td>
-                <td class="celda-numerica">{{ fila.total_faltante }}</td>
-                <td class="celda-numerica">{{ fila.pct_faltante_parciales }} %</td>
+                <td>{{ fila['categoria'] }}</td>
+                <td class="celda-numerica">{{ fila['filas_con_faltante'] }}</td>
+                <td class="celda-numerica">{{ fila['pct_filas_faltante'] }} %</td>
+                <td class="celda-numerica">{{ fila['total_faltante'] }}</td>
+                <td class="celda-numerica">{{ fila['pct_faltante_parciales'] }} %</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    <p><strong>Resumen:</strong> {{ analisis_categoria.total_filas_faltante }} filas con faltante · Total faltante parciales: {{ analisis_categoria.total_faltante_parciales }}</p>
+    <p><strong>Resumen:</strong> {{ analisis_categoria['total_filas_faltante'] }} filas con faltante · Total faltante parciales: {{ analisis_categoria['total_faltante_parciales'] }}</p>
 </div>
 
 <div class="btn-grupo">

@@ -36,17 +36,17 @@
 <div class="contadores">
     <div class="contador">
         <div class="etiqueta">Total Líneas de Pedido (Mes)</div>
-        <div class="valor">{{ estado_mes.total_pedido }}</div>
-        <div class="subvalor">{{ estado_mes.fecha_primera }} al {{ estado_mes.fecha_ultima }}</div>
+        <div class="valor">{{ estado_mes['total_lineas_pedido'] }}</div>
+        <div class="subvalor">{{ estado_mes['fecha_primera'] }} al {{ estado_mes['fecha_ultima'] }}</div>
     </div>
     <div class="contador">
         <div class="etiqueta">Total Líneas Asignadas (Mes)</div>
-        <div class="valor">{{ estado_mes.total_asignado }}</div>
-        <div class="subvalor">{{ estado_mes.dias_con_datos }} días con datos</div>
+        <div class="valor">{{ estado_mes['lineas_asignadas'] }}</div>
+        <div class="subvalor">{{ estado_mes['dias_con_datos'] }} días con datos</div>
     </div>
-    <div class="contador {% if estado_mes.fill_rate_pct >= 90 %}verde{% elif estado_mes.fill_rate_pct >= 70 %}amarillo{% else %}rojo{% endif %}">
+    <div class="contador {% if estado_mes['fill_rate_pct'] >= 90 %}verde{% elif estado_mes['fill_rate_pct'] >= 70 %}amarillo{% else %}rojo{% endif %}">
         <div class="etiqueta">Fill Rate % Acumulado</div>
-        <div class="valor">{{ estado_mes.fill_rate_pct }} %</div>
+        <div class="valor">{{ estado_mes['fill_rate_pct'] }} %</div>
         <div class="subvalor">Asignado / Pedido × 100</div>
     </div>
 </div>
@@ -64,31 +64,31 @@
         <tbody>
             <tr>
                 <td>Días con archivos</td>
-                <td class="celda-numerica">{{ estado_mes.dias_con_datos }}</td>
+                <td class="celda-numerica">{{ estado_mes['dias_con_datos'] }}</td>
             </tr>
             <tr>
                 <td>Fecha primera</td>
-                <td>{{ estado_mes.fecha_primera }}</td>
+                <td>{{ estado_mes['fecha_primera'] }}</td>
             </tr>
             <tr>
                 <td>Fecha última</td>
-                <td>{{ estado_mes.fecha_ultima }}</td>
+                <td>{{ estado_mes['fecha_ultima'] }}</td>
             </tr>
             <tr>
                 <td>Total líneas pedido</td>
-                <td class="celda-numerica">{{ estado_mes.total_pedido }}</td>
+                <td class="celda-numerica">{{ estado_mes['total_lineas_pedido'] }}</td>
             </tr>
             <tr>
                 <td>Total líneas asignadas</td>
-                <td class="celda-numerica">{{ estado_mes.total_asignado }}</td>
+                <td class="celda-numerica">{{ estado_mes['lineas_asignadas'] }}</td>
             </tr>
             <tr>
                 <td>Total faltante</td>
-                <td class="celda-numerica">{{ estado_mes.total_pedido - estado_mes.total_asignado }}</td>
+                <td class="celda-numerica">{{ estado_mes['total_lineas_pedido'] - estado_mes['lineas_asignadas'] }}</td>
             </tr>
             <tr>
                 <td>Fill Rate %</td>
-                <td class="celda-numerica">{{ estado_mes.fill_rate_pct }} %</td>
+                <td class="celda-numerica">{{ estado_mes['fill_rate_pct'] }} %</td>
             </tr>
         </tbody>
     </table>
