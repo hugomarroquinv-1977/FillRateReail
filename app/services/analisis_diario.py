@@ -3,13 +3,20 @@
 Lee archivos Excel de la carpeta insumos/ con formato:
 Pedido DD-mm-YYYY.xlsx
 
-Columnas reales del Excel (según imagen 2):
-- Columna A: Descri Clase (Categoría)
-- Columna C: Centro de Carne
-- Columna G: Pedido
-- Columna H: Asignado
-- Columna I: Diferencia
-- Columna J: Sin Asignar
+Columnas reales del Excel (según imagen 2, índice base 0):
+- Columna A (0): Descri Clase / Categoría
+- Columna C (2): Centro de Carne
+- Columna G (6): Pedido
+- Columna H (7): Asignado
+- Columna I (8): Diferencia
+- Columna J (9): Sin Asignar
+
+LÓGICA DE CONTEO (no sumar valores):
+- Total líneas de pedido: contar filas donde columna G tiene valor (excluyendo encabezado fila 1)
+- Líneas asignadas: contar filas donde columna H tiene valor y H != 0
+- Sin asignar: contar filas donde columna H es 0 o vacía
+- Parciales: contar filas donde H < G (asignado menor que pedido)
+- Fill Rate % = (líneas con H ≠ 0 / total líneas de pedido) × 100
 """
 
 from __future__ import annotations
@@ -29,14 +36,7 @@ PATRON_ARCHIVO_PEDIDO = re.compile(r"^Pedido (\d{2})-(\d{2})-(\d{4})\.xlsx$")
 
 
 def interpretar_fecha_nombre_archivo(nombre_archivo: str) -> Optional[datetime]:
-    """Interpreta la fecha de un archivo tipo Pedido DD-mm-YYYY.xlsx.
-
-    Args:
-        nombre_archivo: Nombre del archivo Excel.
-
-    Returns:
-        Objeto datetime si coincide el patrón, None en caso contrario.
-    """
+    """Interpreta la fecha de un archivo tipo Pedido DD-mm-YYYY.xlsx."""
     match = PATRON_ARCHIVO_PEDIDO.match(nombre_archivo)
     if not match:
         return None
@@ -51,11 +51,7 @@ def interpretar_fecha_nombre_archivo(nombre_archivo: str) -> Optional[datetime]:
 def listar_archivos_pedido(carpeta: Path = INSUMOS_PATH) -> list[tuple[datetime, Path]]:
     """Lista todos los archivos Pedido DD-mm-YYYY.xlsx con su fecha interpretada.
 
-    Args:
-        carpeta: Carpeta donde buscar los archivos.
-
-    Returns:
-        Lista de tuplas (fecha, ruta_archivo) ordenada por fecha descendente.
+    Ordena por fecha descendente (más reciente primero).
     """
     if not carpeta.exists():
         return []
@@ -66,152 +62,225 @@ def listar_archivos_pedido(carpeta: Path = INSUMOS_PATH) -> list[tuple[datetime,
         if fecha is not None:
             archivos_con_fecha.append((fecha, archivo))
 
-    # Ordenar por fecha descendente (más reciente primero)
     archivos_con_fecha.sort(key=lambda x: x[0], reverse=True)
     return archivos_con_fecha
+
+
+def leer_archivo_excel(ruta: Path) -> Optional[pd.DataFrame]:
+    """Lee un archivo Excel sin encabezados.
+
+    Intenta leer el archivo. Si falla (bloqueado por Excel, etc.), devuelve None.
+    """
+    try:
+        df = pd.read_excel(ruta, sheet_name=0, header=None)
+        return df
+    except Exception:
+        return None
 
 
 def obtener_archivo_mas_reciente(carpeta: Path = INSUMOS_PATH) -> Optional[tuple[datetime, Path, pd.DataFrame]]:
     """Obtiene el archivo Pedido más reciente que se pueda leer correctamente.
 
-    Intenta leer los archivos en orden descendente por fecha. Si el más reciente
-    no se puede leer (ej. bloqueado por Excel), prueba con el siguiente.
-
-    Args:
-        carpeta: Carpeta donde buscar los archivos.
-
-    Returns:
-        Tupla (fecha, ruta, dataframe) o None si no se puede leer ningún archivo.
+    Intenta leer los archivos en orden descendente por fecha.
+    Si el más reciente está bloqueado, prueba con el siguiente.
     """
     archivos = listar_archivos_pedido(carpeta)
     if not archivos:
         return None
 
     for fecha, ruta in archivos:
-        try:
-            df = pd.read_excel(ruta, sheet_name=0, header=None)
+        df = leer_archivo_excel(ruta)
+        if df is not None:
             return fecha, ruta, df
-        except Exception:
-            continue
 
     return None
 
 
-def leer_archivo_por_fecha(fecha_objetivo: datetime, carpeta: Path = INSUMOS_PATH) -> Optional[pd.DataFrame]:
-    """Lee el archivo Pedido para una fecha específica.
-
-    Args:
-        fecha_objetivo: Fecha a buscar (formato DD-mm-YYYY).
-        carpeta: Carpeta donde buscar.
-
-    Returns:
-        DataFrame con los datos o None si no se encuentra.
-    """
+def obtener_archivo_por_fecha(fecha_objetivo: datetime, carpeta: Path = INSUMOS_PATH) -> Optional[pd.DataFrame]:
+    """Lee el archivo Pedido para una fecha específica."""
     nombre_esperado = f"Pedido {fecha_objetivo.day:02d}-{fecha_objetivo.month:02d}-{fecha_objetivo.year}.xlsx"
     ruta = carpeta / nombre_esperado
 
     if not ruta.exists():
         return None
 
-    try:
-        return pd.read_excel(ruta, sheet_name=0, header=None)
-    except Exception:
-        return None
+    return leer_archivo_excel(ruta)
 
 
 def leer_archivos_por_mes_ano(mes: int, ano: int, carpeta: Path = INSUMOS_PATH) -> list[tuple[datetime, pd.DataFrame]]:
     """Lee todos los archivos Pedido de un mes y año específicos.
 
-    Args:
-        mes: Mes (1-12).
-        ano: Año (ej. 2026).
-        carpeta: Carpeta donde buscar.
-
-    Returns:
-        Lista de tuplas (fecha, dataframe) ordenada por fecha ascendente.
+    Retorna lista de tuplas (fecha, dataframe) ordenada por fecha ascendente.
     """
     resultados = []
     archivos = listar_archivos_pedido(carpeta)
 
     for fecha, ruta in archivos:
         if fecha.month == mes and fecha.year == ano:
-            try:
-                df = pd.read_excel(ruta, sheet_name=0, header=None)
+            df = leer_archivo_excel(ruta)
+            if df is not None:
                 resultados.append((fecha, df))
-            except Exception:
-                continue
 
-    # Ordenar por fecha ascendente
     resultados.sort(key=lambda x: x[0])
     return resultados
 
 
-def extraer_datos_factura(df: pd.DataFrame) -> pd.DataFrame:
-    """Extrae y limpia los datos relevantes de un DataFrame de factura.
+def contar_filas_con_valor(df: pd.DataFrame, columna_idx: int, valor_excluir: Optional[float] = None) -> int:
+    """Cuenta filas donde una columna tiene un valor válido (no vacío, no NaN).
 
-    Columnas mapeadas según imagen 2:
-    - A (índice 0): Descri Clase
-    - C (índice 2): Centro de Carne
-    - G (índice 6): Pedido
-    - H (índice 7): Asignado
-    - J (índice 9): Sin Asignar
+    Opcionalmente excluye filas donde el valor sea igual a valor_excluir.
+
+    Args:
+        df: DataFrame con los datos.
+        columna_idx: Índice de la columna (base 0).
+        valor_excluir: Si se especifica, no contar filas donde el valor sea igual a este.
+
+    Returns:
+        Número de filas que cumplen la condición.
+    """
+    if df.empty or df.shape[1] <= columna_idx:
+        return 0
+
+    columna = df.iloc[:, columna_idx]
+
+    # Convertir a numérico, errores se convierten en NaN
+    columna_numerica = pd.to_numeric(columna, errors="coerce")
+
+    # Contar no nulos
+    mask_valido = columna_numerica.notna()
+
+    if valor_excluir is not None:
+        mask_valido = mask_valido & (columna_numerica != valor_excluir)
+
+    return int(mask_valido.sum())
+
+
+def contar_filas_por_categoria(df: pd.DataFrame) -> dict:
+    """Cuenta filas por categoría (columna A, índice 0).
+
+    Retorna diccionario {categoria: conteo_filas}.
+    """
+    if df.empty or df.shape[1] <= 0:
+        return {}
+
+    columna_categoria = df.iloc[:, 0].astype(str).str.strip()
+    # Eliminar filas vacías o encabezados repetidos
+    columna_categoria = columna_categoria[columna_categoria != ""]
+    columna_categoria = columna_categoria[columna_categoria != "Descri Clase"]
+
+    conteo = columna_categoria.value_counts()
+    return conteo.to_dict()
+
+
+def extraer_estadisticas_archivo(df: pd.DataFrame) -> dict:
+    """Extrae estadísticas de conteo de un DataFrame de archivo Excel.
+
+    Lógica de conteo (no sumar):
+    - total_lineas_pedido: filas donde columna G (índice 6) tiene valor
+    - lineas_asignadas: filas donde columna H (índice 7) tiene valor y H != 0
+    - lineas_sin_asignar: filas donde columna H es 0 o vacía
+    - lineas_parciales: filas donde H < G (asignado menor que pedido)
 
     Args:
         df: DataFrame leído del Excel sin encabezados.
 
     Returns:
-        DataFrame con columnas: categoria, centro_carne, pedido, asignado, sin_asignar.
-    """
-    if df.empty:
-        return pd.DataFrame(
-            columns=["categoria", "centro_carne", "pedido", "asignado", "sin_asignar", "faltante"]
-        )
-
-    datos = pd.DataFrame()
-    datos["categoria"] = df.iloc[:, 0] if df.shape[1] > 0 else None
-    datos["centro_carne"] = df.iloc[:, 2] if df.shape[1] > 2 else None
-    datos["pedido"] = pd.to_numeric(df.iloc[:, 6], errors="coerce") if df.shape[1] > 6 else None
-    datos["asignado"] = pd.to_numeric(df.iloc[:, 7], errors="coerce") if df.shape[1] > 7 else None
-    datos["sin_asignar"] = pd.to_numeric(df.iloc[:, 9], errors="coerce") if df.shape[1] > 9 else None
-
-    # Calcular faltante = pedido - asignado
-    datos["faltante"] = datos["pedido"] - datos["asignado"]
-
-    # Eliminar filas donde todo esté vacío
-    datos = datos.dropna(how="all").reset_index(drop=True)
-
-    return datos
-
-
-def calcular_estado_fill_rate(df: pd.DataFrame) -> dict:
-    """Calcula las métricas de Fill Rate para un DataFrame.
-
-    Implementa: Fill Rate % = (Suma Asignado / Suma Pedido) × 100
-
-    Args:
-        df: DataFrame con columnas pedido y asignado.
-
-    Returns:
-        Diccionario con total_pedido, total_asignado, fill_rate_pct.
+        Diccionario con los conteos y porcentajes.
     """
     if df.empty:
         return {
-            "total_pedido": 0,
-            "total_asignado": 0,
+            "total_lineas_pedido": 0,
+            "lineas_asignadas": 0,
+            "lineas_sin_asignar": 0,
+            "lineas_parciales": 0,
             "fill_rate_pct": 0.0,
         }
 
-    total_pedido = df["pedido"].sum()
-    total_asignado = df["asignado"].sum()
+    # Fila 1 (índice 0) es encabezado, saltarla
+    datos = df.iloc[1:].copy() if len(df) > 1 else pd.DataFrame()
 
-    if total_pedido > 0:
-        fill_rate_pct = round((total_asignado / total_pedido) * 100, 2)
+    if datos.empty:
+        return {
+            "total_lineas_pedido": 0,
+            "lineas_asignadas": 0,
+            "lineas_sin_asignar": 0,
+            "lineas_parciales": 0,
+            "fill_rate_pct": 0.0,
+        }
+
+    # Columna G (índice 6): Pedido
+    if datos.shape[1] > 6:
+        columna_pedido = pd.to_numeric(datos.iloc[:, 6], errors="coerce")
+        total_lineas_pedido = int(columna_pedido.notna().sum())
+    else:
+        total_lineas_pedido = 0
+
+    # Columna H (índice 7): Asignado
+    if datos.shape[1] > 7:
+        columna_asignado = pd.to_numeric(datos.iloc[:, 7], errors="coerce")
+
+        # Líneas asignadas: H tiene valor y H != 0
+        mask_asignado = columna_asignado.notna() & (columna_asignado != 0)
+        lineas_asignadas = int(mask_asignado.sum())
+
+        # Sin asignar: H es 0 o vacía
+        mask_sin_asignado = columna_asignado.isna() | (columna_asignado == 0)
+        lineas_sin_asignar = int(mask_sin_asignado.sum())
+    else:
+        columna_asignado = pd.Series([float('nan')] * len(datos))
+        lineas_asignadas = 0
+        lineas_sin_asignar = total_lineas_pedido
+
+    # Parciales: H < G (asignado menor que pedido, y H != 0)
+    if datos.shape[1] > 6 and datos.shape[1] > 7:
+        mask_parcial = (
+            columna_asignado.notna()
+            & (columna_asignado != 0)
+            & (columna_asignado < columna_pedido)
+        )
+        lineas_parciales = int(mask_parcial.sum())
+    else:
+        lineas_parciales = 0
+
+    # Fill Rate % = (líneas asignadas / total líneas de pedido) × 100
+    if total_lineas_pedido > 0:
+        fill_rate_pct = round((lineas_asignadas / total_lineas_pedido) * 100, 2)
     else:
         fill_rate_pct = 0.0
 
     return {
-        "total_pedido": int(total_pedido),
-        "total_asignado": int(total_asignado),
+        "total_lineas_pedido": total_lineas_pedido,
+        "lineas_asignadas": lineas_asignadas,
+        "lineas_sin_asignar": lineas_sin_asignar,
+        "lineas_parciales": lineas_parciales,
+        "fill_rate_pct": fill_rate_pct,
+    }
+
+
+def agregar_estadisticas(estadisticas_lista: list[dict]) -> dict:
+    """Agrega estadísticas de múltiples archivos sumando los conteos.
+
+    Args:
+        estadisticas_lista: Lista de diccionarios con estadísticas individuales.
+
+    Returns:
+        Diccionario con totales agregados y fill rate calculado.
+    """
+    total_pedido = sum(e["total_lineas_pedido"] for e in estadisticas_lista)
+    total_asignadas = sum(e["lineas_asignadas"] for e in estadisticas_lista)
+    total_sin_asignar = sum(e["lineas_sin_asignar"] for e in estadisticas_lista)
+    total_parciales = sum(e["lineas_parciales"] for e in estadisticas_lista)
+
+    if total_pedido > 0:
+        fill_rate_pct = round((total_asignadas / total_pedido) * 100, 2)
+    else:
+        fill_rate_pct = 0.0
+
+    return {
+        "total_lineas_pedido": total_pedido,
+        "lineas_asignadas": total_asignadas,
+        "lineas_sin_asignar": total_sin_asignar,
+        "lineas_parciales": total_parciales,
         "fill_rate_pct": fill_rate_pct,
     }
 
@@ -219,49 +288,39 @@ def calcular_estado_fill_rate(df: pd.DataFrame) -> dict:
 def obtener_estado_ultima_fecha(carpeta: Path = INSUMOS_PATH) -> Optional[dict]:
     """Obtiene el estado de Fill Rate de la fecha más reciente.
 
-    Args:
-        carpeta: Carpeta donde buscar los archivos.
-
     Returns:
-        Diccionario con fecha, total_pedido, total_asignado, fill_rate_pct,
-        datos_por_centro, o None si no hay archivos.
+        Diccionario con fecha, conteos y fill rate, o None si no hay archivos.
     """
     resultado = obtener_archivo_mas_reciente(carpeta)
     if resultado is None:
         return None
 
-    fecha, ruta, df_raw = resultado
-    df = extraer_datos_factura(df_raw)
+    fecha, ruta, df = resultado
+    estadisticas = extraer_estadisticas_archivo(df)
 
-    estado = calcular_estado_fill_rate(df)
+    # Agrupación por Centro de Carne (columna C, índice 2)
+    datos_por_centro = []
+    if not df.empty and df.shape[1] > 2:
+        datos = df.iloc[1:].copy() if len(df) > 1 else pd.DataFrame()
+        if not datos.empty and datos.shape[1] > 2:
+            columna_centro = datos.iloc[:, 2].astype(str).str.strip()
+            columna_centro = columna_centro[columna_centro != ""]
+            columna_centro = columna_centro[columna_centro != "Centro de Carnes"]
 
-    # Agrupación por Centro de Carne
-    if not df.empty and "centro_carne" in df.columns:
-        agrupacion = (
-            df.groupby("centro_carne", dropna=False)
-            .agg(
-                total_pedido=("pedido", "sum"),
-                total_asignado=("asignado", "sum"),
-                total_faltante=("faltante", "sum"),
-            )
-            .reset_index()
-        )
+            for centro, grupo in datos.groupby(columna_centro, dropna=False):
+                stats_centro = extraer_estadisticas_archivo(pd.DataFrame(grupo))
+                datos_por_centro.append({
+                    "centro_carne": str(centro),
+                    **stats_centro,
+                })
 
-        # Calcular % de fill rate por centro
-        agrupacion["fill_rate_pct"] = (
-            (agrupacion["total_asignado"] / agrupacion["total_pedido"]) * 100
-        ).where(agrupacion["total_pedido"] > 0, 0).round(2)
-
-        datos_por_centro = agrupacion.to_dict("records")
-    else:
-        datos_por_centro = []
+            # Ordenar por total de pedido descendente
+            datos_por_centro.sort(key=lambda x: x["total_lineas_pedido"], reverse=True)
 
     return {
         "fecha": fecha.strftime("%d-%m-%Y"),
         "fecha_objeto": fecha,
-        "total_pedido": estado["total_pedido"],
-        "total_asignado": estado["total_asignado"],
-        "fill_rate_pct": estado["fill_rate_pct"],
+        **estadisticas,
         "datos_por_centro": datos_por_centro,
     }
 
@@ -269,7 +328,7 @@ def obtener_estado_ultima_fecha(carpeta: Path = INSUMOS_PATH) -> Optional[dict]:
 def obtener_estado_mes_ano(mes: int, ano: int, carpeta: Path = INSUMOS_PATH) -> Optional[dict]:
     """Obtiene el estado acumulado de Fill Rate para un mes y año.
 
-    Acumula todos los archivos desde el día 1 del mes hasta la última fecha disponible.
+    Suma los conteos de todas las filas de todos los archivos del mes.
 
     Args:
         mes: Mes (1-12).
@@ -277,29 +336,26 @@ def obtener_estado_mes_ano(mes: int, ano: int, carpeta: Path = INSUMOS_PATH) -> 
         carpeta: Carpeta donde buscar.
 
     Returns:
-        Diccionario con mes, ano, total_pedido, total_asignado, fill_rate_pct,
-        o None si no hay datos.
+        Diccionario con totales del mes, o None si no hay datos.
     """
     archivos_mes = leer_archivos_por_mes_ano(mes, ano, carpeta)
 
     if not archivos_mes:
         return None
 
-    # Combinar todos los DataFrames del mes
-    todos_los_datos = []
+    estadisticas_lista = []
     fechas_encontradas = []
 
-    for fecha, df_raw in archivos_mes:
-        df = extraer_datos_factura(df_raw)
-        if not df.empty:
-            todos_los_datos.append(df)
+    for fecha, df in archivos_mes:
+        stats = extraer_estadisticas_archivo(df)
+        if stats["total_lineas_pedido"] > 0:
+            estadisticas_lista.append(stats)
             fechas_encontradas.append(fecha)
 
-    if not todos_los_datos:
+    if not estadisticas_lista:
         return None
 
-    df_combinado = pd.concat(todos_los_datos, ignore_index=True)
-    estado = calcular_estado_fill_rate(df_combinado)
+    agregado = agregar_estadisticas(estadisticas_lista)
 
     fecha_primera = min(fechas_encontradas).strftime("%d-%m-%Y")
     fecha_ultima = max(fechas_encontradas).strftime("%d-%m-%Y")
@@ -310,25 +366,23 @@ def obtener_estado_mes_ano(mes: int, ano: int, carpeta: Path = INSUMOS_PATH) -> 
         "fecha_primera": fecha_primera,
         "fecha_ultima": fecha_ultima,
         "dias_con_datos": len(fechas_encontradas),
-        "total_pedido": estado["total_pedido"],
-        "total_asignado": estado["total_asignado"],
-        "fill_rate_pct": estado["fill_rate_pct"],
+        **agregado,
     }
 
 
 def obtener_analisis_categoria(carpeta: Path = INSUMOS_PATH) -> Optional[dict]:
     """Obtiene análisis de faltante por categoría (columna A = Descri Clase).
 
-    Tres clasificaciones:
-    1. Total completo y % (todas las filas por categoría)
-    2. Total parciales y % (filas con faltante > 0)
-    3. Total sin asignar (columna J) y %
+    Tres clasificaciones contando filas (no sumando valores):
+    1. Total completo: contar filas por categoría
+    2. Parciales: contar filas donde faltante > 0 (H < G y H != 0)
+    3. Sin asignar (columna J): contar filas donde columna J tiene valor
 
     Args:
         carpeta: Carpeta donde buscar los archivos.
 
     Returns:
-        Diccionario con las tres clasificaciones o None si no hay datos.
+        Diccionario con las tres clasificaciones, o None si no hay datos.
     """
     archivos = listar_archivos_pedido(carpeta)
 
@@ -338,94 +392,103 @@ def obtener_analisis_categoria(carpeta: Path = INSUMOS_PATH) -> Optional[dict]:
     todos_los_datos = []
 
     for _, ruta in archivos:
-        try:
-            df_raw = pd.read_excel(ruta, sheet_name=0, header=None)
-            df = extraer_datos_factura(df_raw)
-            if not df.empty:
-                todos_los_datos.append(df)
-        except Exception:
-            continue
+        df = leer_archivo_excel(ruta)
+        if df is not None and not df.empty:
+            # Saltar fila 1 (encabezado)
+            datos = df.iloc[1:].copy() if len(df) > 1 else pd.DataFrame()
+            if not datos.empty:
+                todos_los_datos.append(datos)
 
     if not todos_los_datos:
         return None
 
     df_combinado = pd.concat(todos_los_datos, ignore_index=True)
 
-    # Clasificación 1: Total completo por categoría (todas las filas)
-    total_por_categoria = (
-        df_combinado.groupby("categoria", dropna=False)
-        .agg(
-            total_filas=("pedido", "count"),
-            total_pedido=("pedido", "sum"),
-            total_asignado=("asignado", "sum"),
-            total_faltante=("faltante", "sum"),
-            total_sin_asignar=("sin_asignar", "sum"),
-        )
-        .reset_index()
-    )
+    total_filas_global = len(df_combinado)
 
-    total_filas_global = total_por_categoria["total_filas"].sum()
-    total_pedido_global = total_por_categoria["total_pedido"].sum()
-    total_faltante_global = total_por_categoria["total_faltante"].sum()
-    total_sin_asignar_global = total_por_categoria["total_sin_asignar"].sum()
-
-    total_por_categoria["pct_filas"] = (
-        (total_por_categoria["total_filas"] / total_filas_global) * 100
-    ).round(2)
-    if total_faltante_global > 0:
-        total_por_categoria["pct_faltante"] = (
-            (total_por_categoria["total_faltante"] / total_faltante_global) * 100
-        ).round(2)
+    # Categoría (columna A, índice 0) - limpiar encabezados repetidos
+    if df_combinado.shape[1] > 0:
+        columna_categoria = df_combinado.iloc[:, 0].astype(str).str.strip()
+        mascara_valida = (columna_categoria != "") & (columna_categoria != "Descri Clase")
+        df_valido = df_combinado[mascara_valida].copy()
+        df_valido["_categoria"] = columna_categoria[mascara_valida].reset_index(drop=True)
     else:
-        total_por_categoria["pct_faltante"] = 0.0
+        df_valido = pd.DataFrame()
+        df_valido["_categoria"] = pd.Series([], dtype=str)
 
-    if total_sin_asignar_global > 0:
-        total_por_categoria["pct_sin_asignar"] = (
-            (total_por_categoria["total_sin_asignar"] / total_sin_asignar_global) * 100
-        ).round(2)
-    else:
-        total_por_categoria["pct_sin_asignar"] = 0.0
+    # Totales globales usando extraer_estadisticas_archivo en el dataframe completo
+    stats_global = extraer_estadisticas_archivo(df_valido)
+    total_pedido_global = stats_global["total_lineas_pedido"]
+    total_faltante_global = stats_global["total_lineas_pedido"] - stats_global["lineas_asignadas"]
+    total_sin_asignar_global = stats_global["lineas_sin_asignar"]
 
-    # Clasificación 2: Solo filas con faltante > 0 (parciales)
-    df_con_faltante = df_combinado[df_combinado["faltante"] > 0]
+    # Clasificación 1: Total completo por categoría
+    total_por_categoria = []
 
-    if not df_con_faltante.empty:
-        parciales_por_categoria = (
-            df_con_faltante.groupby("categoria", dropna=False)
-            .agg(
-                filas_con_faltante=("pedido", "count"),
-                total_faltante=("faltante", "sum"),
-            )
-            .reset_index()
-        )
+    for categoria, grupo in df_valido.groupby("_categoria", dropna=False):
+        stats = extraer_estadisticas_archivo(grupo)
+        filas_categoria = stats["total_lineas_pedido"]
+        faltante_categoria = filas_categoria - stats["lineas_asignadas"]
+        sin_asignar_categoria = stats["lineas_sin_asignar"]
 
-        total_filas_faltante = parciales_por_categoria["filas_con_faltante"].sum()
-        total_faltante_parciales = parciales_por_categoria["total_faltante"].sum()
+        total_por_categoria.append({
+            "categoria": str(categoria),
+            "total_filas": filas_categoria,
+            "pct_filas": round((filas_categoria / total_filas_global) * 100, 2) if total_filas_global > 0 else 0.0,
+            "total_pedido": filas_categoria,
+            "total_asignado": stats["lineas_asignadas"],
+            "total_faltante": faltante_categoria,
+            "pct_faltante": round((faltante_categoria / total_filas_global) * 100, 2) if total_filas_global > 0 else 0.0,
+            "total_sin_asignar": sin_asignar_categoria,
+            "pct_sin_asignar": round((sin_asignar_categoria / total_filas_global) * 100, 2) if total_filas_global > 0 else 0.0,
+        })
 
-        parciales_por_categoria["pct_filas_faltante"] = (
-            (parciales_por_categoria["filas_con_faltante"] / total_filas_faltante) * 100
-        ).round(2)
-        parciales_por_categoria["pct_faltante_parciales"] = (
-            (parciales_por_categoria["total_faltante"] / total_faltante_parciales) * 100
-        ).round(2)
-    else:
-        parciales_por_categoria = pd.DataFrame(
-            columns=["categoria", "filas_con_faltante", "total_faltante", "pct_filas_faltante", "pct_faltante_parciales"]
-        )
-        total_filas_faltante = 0
-        total_faltante_parciales = 0
+    # Ordenar por total de filas descendente
+    total_por_categoria.sort(key=lambda x: x["total_filas"], reverse=True)
 
-    # Clasificación 3: Sin asignar (columna J) - ya está en total_por_categoria como total_sin_asignar
+    # Clasificación 2: Parciales (filas donde H < G y H != 0, es decir, faltante > 0)
+    df_con_faltante = df_valido[
+        (df_valido.shape[1] > 6) &
+        (pd.to_numeric(df_valido.iloc[:, 6], errors="coerce").notna()) &
+        (df_valido.shape[1] > 7) &
+        (pd.to_numeric(df_valido.iloc[:, 7], errors="coerce").notna()) &
+        (pd.to_numeric(df_valido.iloc[:, 6], errors="coerce") > pd.to_numeric(df_valido.iloc[:, 7], errors="coerce")) &
+        (pd.to_numeric(df_valido.iloc[:, 7], errors="coerce") != 0)
+    ]
+
+    parciales_por_categoria = []
+    total_filas_faltante = len(df_con_faltante)
+    total_faltante_parciales = 0
+
+    if not df_con_faltante.empty and "_categoria" in df_con_faltante.columns:
+        for categoria, grupo in df_con_faltante.groupby("_categoria", dropna=False):
+            stats = extraer_estadisticas_archivo(grupo)
+            filas_categoria = stats["total_lineas_pedido"]
+            faltante_categoria = filas_categoria - stats["lineas_asignadas"]
+            total_faltante_parciales += faltante_categoria
+
+            parciales_por_categoria.append({
+                "categoria": str(categoria),
+                "filas_con_faltante": filas_categoria,
+                "pct_filas_faltante": round((filas_categoria / total_filas_faltante) * 100, 2) if total_filas_faltante > 0 else 0.0,
+                "total_faltante": faltante_categoria,
+                "pct_faltante_parciales": round((faltante_categoria / total_faltante_parciales) * 100, 2) if total_faltante_parciales > 0 else 0.0,
+            })
+
+        # Ordenar por filas con faltante descendente
+        parciales_por_categoria.sort(key=lambda x: x["filas_con_faltante"], reverse=True)
+
+    # Clasificación 3: Sin asignar (columna J, índice 9) - ya está en total_por_categoria
 
     return {
-        "total_filas_global": int(total_filas_global),
-        "total_pedido_global": int(total_pedido_global),
-        "total_faltante_global": int(total_faltante_global),
-        "total_sin_asignar_global": int(total_sin_asignar_global),
-        "total_por_categoria": total_por_categoria.to_dict("records"),
-        "parciales_por_categoria": parciales_por_categoria.to_dict("records"),
-        "total_filas_faltante": int(total_filas_faltante),
-        "total_faltante_parciales": int(total_faltante_parciales),
+        "total_filas_global": total_filas_global,
+        "total_pedido_global": total_pedido_global,
+        "total_faltante_global": total_faltante_global,
+        "total_sin_asignar_global": total_sin_asignar_global,
+        "total_por_categoria": total_por_categoria,
+        "parciales_por_categoria": parciales_por_categoria,
+        "total_filas_faltante": total_filas_faltante,
+        "total_faltante_parciales": total_faltante_parciales,
     }
 
 
@@ -435,15 +498,14 @@ if __name__ == "__main__":
     if estado:
         print("=== Última fecha ===")
         print(f"Fecha: {estado['fecha']}")
-        print(f"Total pedido: {estado['total_pedido']}")
-        print(f"Total asignado: {estado['total_asignado']}")
+        print(f"Total líneas pedido: {estado['total_lineas_pedido']}")
+        print(f"Líneas asignadas: {estado['lineas_asignadas']}")
+        print(f"Líneas sin asignar: {estado['lineas_sin_asignar']}")
+        print(f"Líneas parciales: {estado['lineas_parciales']}")
         print(f"Fill Rate: {estado['fill_rate_pct']}%")
-        print(f"Centros: {len(estado['datos_por_centro'])}")
 
     analisis = obtener_analisis_categoria()
     if analisis:
         print("\n=== Análisis por Categoría ===")
         print(f"Total filas: {analisis['total_filas_global']}")
-        print(f"Total faltante: {analisis['total_faltante_global']}")
-        print(f"Total sin asignar: {analisis['total_sin_asignar_global']}")
         print(f"Categorías: {len(analisis['total_por_categoria'])}")
