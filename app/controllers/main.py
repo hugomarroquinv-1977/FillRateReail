@@ -1,226 +1,115 @@
 """Controlador principal de la aplicación FillRateRetail."""
 
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, jsonify, request
 
 main_bp = Blueprint("main", __name__)
 
 
 @main_bp.route("/")
 def inicio():
-    """Pantalla de inicio / tablero gerencial."""
-    datos_tablero = {
-        "fill_rate_general": "77,20",
-        "kilos_faltantes_totales": "57",
-        "kilos_solicitados_totales": "250",
-        "kilos_entregados_totales": "193",
-        "datos_por_categoria": [
-            {"categoria": "Res", "pedido_kg": "140", "entrega_kg": "95", "faltante_kg": "45", "fill_rate_pct": "67,86"},
-            {"categoria": "Cerdo", "pedido_kg": "110", "entrega_kg": "98", "faltante_kg": "12", "fill_rate_pct": "89,09"},
-        ],
-        "datos_por_centro": [
-            {"centro": "CC A", "pedido_kg": "350", "entrega_kg": "295", "faltante_kg": "55", "fill_rate_pct": "84,29"},
-            {"centro": "CC B", "pedido_kg": "200", "entrega_kg": "154", "faltante_kg": "46", "fill_rate_pct": "77,00"},
-        ],
-        "datos_recurrentes": [
-            {"producto": "RIB EYE STEAK", "codigo": "R001", "categoria": "Res", "faltante_total_kg": "55", "dias_con_faltante": "2"},
-            {"producto": "CACHETE DE CERDO", "codigo": "C001", "categoria": "Cerdo", "faltante_total_kg": "26", "dias_con_faltante": "2"},
-        ],
-        "alertas_ia": [],
-        "alerta_ia_no_disponible": "El motor de IA local no está configurado. Los cálculos determinísticos siguen disponibles.",
-    }
+    """Pantalla principal con 3 tabs de análisis de Fill Rate."""
+    from app.services.analisis_diario import (
+        obtener_estado_ultima_fecha,
+        obtener_estado_mes_ano,
+        obtener_analisis_categoria,
+    )
+    from datetime import datetime
 
-    return render_template("inicio.html", **datos_tablero)
+    # Obtener fecha actual para seleccionar mes/año por defecto
+    ahora = datetime.now()
+
+    # Vista 1: Última fecha disponible
+    estado_ultimo = obtener_estado_ultima_fecha()
+
+    # Vista 2: Mes actual acumulado
+    estado_mes = obtener_estado_mes_ano(ahora.month, ahora.year)
+
+    # Vista 3: Análisis por categoría
+    analisis_categoria = obtener_analisis_categoria()
+
+    return render_template(
+        "inicio.html",
+        estado_ultimo=estado_ultimo,
+        estado_mes=estado_mes,
+        analisis_categoria=analisis_categoria,
+        mes_actual=ahora.month,
+        ano_actual=ahora.year,
+    )
 
 
-@main_bp.route("/resultados")
-def resultados():
-    """Pantalla de resultados detallados con tabla y detalle por registro."""
-    import json
+@main_bp.route("/analisis/mes")
+def analisis_mes():
+    """Pantalla de análisis acumulado por mes con selector."""
+    from app.services.analisis_diario import (
+        obtener_estado_mes_ano,
+        obtener_analisis_categoria,
+    )
 
-    datos_resultados = {
-        "total_registros": "8",
-        "registros_con_faltante": "4",
-        "fill_rate_promedio": "81,25",
-        "kilos_faltantes_totales": "101",
-        "datos_registros": [
-            {
-                "fecha": "2026-11-01",
-                "centro_carne": "CC A",
-                "categoria": "Res",
-                "producto": "RIB EYE STEAK",
-                "codigo": "R001",
-                "pedido_kg": "100",
-                "entrega_kg": "75",
-                "faltante_kg": "25",
-                "fill_rate_pct": "75,00",
-                "detalle_json": {
-                    "fecha": "2026-11-01",
-                    "centro_carne": "CC A",
-                    "categoria": "Res",
-                    "producto": "RIB EYE STEAK",
-                    "codigo": "R001",
-                    "pedido_kg": "100",
-                    "entrega_kg": "75",
-                    "faltante_kg": "25",
-                    "fill_rate_pct": "75,00",
-                },
-            },
-            {
-                "fecha": "2026-11-01",
-                "centro_carne": "CC A",
-                "categoria": "Cerdo",
-                "producto": "CACHETE DE CERDO",
-                "codigo": "C001",
-                "pedido_kg": "50",
-                "entrega_kg": "50",
-                "faltante_kg": "0",
-                "fill_rate_pct": "100,00",
-                "detalle_json": {
-                    "fecha": "2026-11-01",
-                    "centro_carne": "CC A",
-                    "categoria": "Cerdo",
-                    "producto": "CACHETE DE CERDO",
-                    "codigo": "C001",
-                    "pedido_kg": "50",
-                    "entrega_kg": "50",
-                    "faltante_kg": "0",
-                    "fill_rate_pct": "100,00",
-                },
-            },
-            {
-                "fecha": "2026-11-01",
-                "centro_carne": "CC B",
-                "categoria": "Res",
-                "producto": "RIB EYE STEAK",
-                "codigo": "R001",
-                "pedido_kg": "40",
-                "entrega_kg": "20",
-                "faltante_kg": "20",
-                "fill_rate_pct": "50,00",
-                "detalle_json": {
-                    "fecha": "2026-11-01",
-                    "centro_carne": "CC B",
-                    "categoria": "Res",
-                    "producto": "RIB EYE STEAK",
-                    "codigo": "R001",
-                    "pedido_kg": "40",
-                    "entrega_kg": "20",
-                    "faltante_kg": "20",
-                    "fill_rate_pct": "50,00",
-                },
-            },
-            {
-                "fecha": "2026-11-01",
-                "centro_carne": "CC B",
-                "categoria": "Cerdo",
-                "producto": "CACHETE DE CERDO",
-                "codigo": "C001",
-                "pedido_kg": "60",
-                "entrega_kg": "48",
-                "faltante_kg": "12",
-                "fill_rate_pct": "80,00",
-                "detalle_json": {
-                    "fecha": "2026-11-01",
-                    "centro_carne": "CC B",
-                    "categoria": "Cerdo",
-                    "producto": "CACHETE DE CERDO",
-                    "codigo": "C001",
-                    "pedido_kg": "60",
-                    "entrega_kg": "48",
-                    "faltante_kg": "12",
-                    "fill_rate_pct": "80,00",
-                },
-            },
-            {
-                "fecha": "2026-11-02",
-                "centro_carne": "CC A",
-                "categoria": "Res",
-                "producto": "RIB EYE STEAK",
-                "codigo": "R001",
-                "pedido_kg": "120",
-                "entrega_kg": "90",
-                "faltante_kg": "30",
-                "fill_rate_pct": "75,00",
-                "detalle_json": {
-                    "fecha": "2026-11-02",
-                    "centro_carne": "CC A",
-                    "categoria": "Res",
-                    "producto": "RIB EYE STEAK",
-                    "codigo": "R001",
-                    "pedido_kg": "120",
-                    "entrega_kg": "90",
-                    "faltante_kg": "30",
-                    "fill_rate_pct": "75,00",
-                },
-            },
-            {
-                "fecha": "2026-11-02",
-                "centro_carne": "CC A",
-                "categoria": "Cerdo",
-                "producto": "CACHETE DE CERDO",
-                "codigo": "C001",
-                "pedido_kg": "80",
-                "entrega_kg": "80",
-                "faltante_kg": "0",
-                "fill_rate_pct": "100,00",
-                "detalle_json": {
-                    "fecha": "2026-11-02",
-                    "centro_carne": "CC A",
-                    "categoria": "Cerdo",
-                    "producto": "CACHETE DE CERDO",
-                    "codigo": "C001",
-                    "pedido_kg": "80",
-                    "entrega_kg": "80",
-                    "faltante_kg": "0",
-                    "fill_rate_pct": "100,00",
-                },
-            },
-            {
-                "fecha": "2026-11-02",
-                "centro_carne": "CC B",
-                "categoria": "Res",
-                "producto": "RIB EYE STEAK",
-                "codigo": "R001",
-                "pedido_kg": "30",
-                "entrega_kg": "30",
-                "faltante_kg": "0",
-                "fill_rate_pct": "100,00",
-                "detalle_json": {
-                    "fecha": "2026-11-02",
-                    "centro_carne": "CC B",
-                    "categoria": "Res",
-                    "producto": "RIB EYE STEAK",
-                    "codigo": "R001",
-                    "pedido_kg": "30",
-                    "entrega_kg": "30",
-                    "faltante_kg": "0",
-                    "fill_rate_pct": "100,00",
-                },
-            },
-            {
-                "fecha": "2026-11-02",
-                "centro_carne": "CC B",
-                "categoria": "Cerdo",
-                "producto": "CACHETE DE CERDO",
-                "codigo": "C001",
-                "pedido_kg": "70",
-                "entrega_kg": "56",
-                "faltante_kg": "14",
-                "fill_rate_pct": "80,00",
-                "detalle_json": {
-                    "fecha": "2026-11-02",
-                    "centro_carne": "CC B",
-                    "categoria": "Cerdo",
-                    "producto": "CACHETE DE CERDO",
-                    "codigo": "C001",
-                    "pedido_kg": "70",
-                    "entrega_kg": "56",
-                    "faltante_kg": "14",
-                    "fill_rate_pct": "80,00",
-                },
-            },
-        ],
-        "alerta_ia_no_disponible": "El motor de IA local no está configurado. Los cálculos determinísticos siguen disponibles.",
-    }
+    mes = request.args.get("mes", type=int)
+    ano = request.args.get("ano", type=int)
 
-    return render_template("resultados.html", **datos_resultados)
+    if not mes or not ano:
+        from datetime import datetime
+        ahora = datetime.now()
+        mes = ahora.month
+        ano = ahora.year
+
+    estado_mes = obtener_estado_mes_ano(mes, ano)
+    analisis_categoria = obtener_analisis_categoria()
+
+    meses = [
+        (1, "Enero"), (2, "Febrero"), (3, "Marzo"), (4, "Abril"),
+        (5, "Mayo"), (6, "Junio"), (7, "Julio"), (8, "Agosto"),
+        (9, "Septiembre"), (10, "Octubre"), (11, "Noviembre"), (12, "Diciembre"),
+    ]
+
+    anos = list(range(2024, 2027))
+
+    return render_template(
+        "analisis_mes.html",
+        estado_mes=estado_mes,
+        analisis_categoria=analisis_categoria,
+        mes_seleccionado=mes,
+        ano_seleccionado=ano,
+        meses=meses,
+        anos=anos,
+    )
+
+
+@main_bp.route("/analisis/categoria")
+def analisis_categoria_view():
+    """Pantalla de análisis de faltante por categoría."""
+    from app.services.analisis_diario import obtener_analisis_categoria
+
+    analisis = obtener_analisis_categoria()
+
+    return render_template(
+        "analisis_categoria.html",
+        analisis_categoria=analisis,
+    )
+
+
+@main_bp.route("/api/actualizar", methods=["POST"])
+def actualizar_analisis():
+    """Endpoint para actualizar el análisis diario.
+    Lee nuevamente los archivos de insumos/ y devuelve los datos actualizados.
+    """
+    from app.services.analisis_diario import (
+        obtener_estado_ultima_fecha,
+        obtener_estado_mes_ano,
+        obtener_analisis_categoria,
+    )
+    from datetime import datetime
+
+    ahora = datetime.now()
+
+    estado_ultimo = obtener_estado_ultima_fecha()
+    estado_mes = obtener_estado_mes_ano(ahora.month, ahora.year)
+    analisis_categoria = obtener_analisis_categoria()
+
+    return jsonify({
+        "estado_ultimo": estado_ultimo,
+        "estado_mes": estado_mes,
+        "analisis_categoria": analisis_categoria,
+        "timestamp": ahora.strftime("%d-%m-%Y %H:%M:%S"),
+    })

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}FillRateRetail - Fill Rate Acumulado Mes{% endblock %}
+
+{% block contenido %}
+{% if alerta_ia_no_disponible %}
+<div class="alert-banner">
+    ⚠️ {{ alerta_ia_no_disponible }}
+</div>
+{% endif %}
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('main.inicio') }}" class="btn btn-secundario">← Volver al Tablero</a>
+</div>
+
+{% if estado_mes %}
+<div class="selector-periodo">
+    <div>
+        <label>Mes:</label>
+        <select id="mes-select" onchange="cambiarMes()">
+            {% for m, nombre in meses %}
+            <option value="{{ m }}" {% if m == mes_seleccionado %}selected{% endif %}>{{ nombre }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label>Año:</label>
+        <select id="ano-select" onchange="cambiarAno()">
+            {% for a in anos %}
+            <option value="{{ a }}" {% if a == ano_seleccionado %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div class="contadores">
+    <div class="contador">
+        <div class="etiqueta">Total Líneas de Pedido (Mes)</div>
+        <div class="valor">{{ estado_mes.total_pedido }}</div>
+        <div class="subvalor">{{ estado_mes.fecha_primera }} al {{ estado_mes.fecha_ultima }}</div>
+    </div>
+    <div class="contador">
+        <div class="etiqueta">Total Líneas Asignadas (Mes)</div>
+        <div class="valor">{{ estado_mes.total_asignado }}</div>
+        <div class="subvalor">{{ estado_mes.dias_con_datos }} días con datos</div>
+    </div>
+    <div class="contador {% if estado_mes.fill_rate_pct >= 90 %}verde{% elif estado_mes.fill_rate_pct >= 70 %}amarillo{% else %}rojo{% endif %}">
+        <div class="etiqueta">Fill Rate % Acumulado</div>
+        <div class="valor">{{ estado_mes.fill_rate_pct }} %</div>
+        <div class="subvalor">Asignado / Pedido × 100</div>
+    </div>
+</div>
+
+<div class="seccion">
+    <h2>Resumen del Mes</h2>
+    <p>Este análisis acumula todos los archivos de pedidos desde el día 1 del mes seleccionado hasta la última fecha disponible en la carpeta de insumos.</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Indicador</th>
+                <th class="celda-numerica">Valor</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Días con archivos</td>
+                <td class="celda-numerica">{{ estado_mes.dias_con_datos }}</td>
+            </tr>
+            <tr>
+                <td>Fecha primera</td>
+                <td>{{ estado_mes.fecha_primera }}</td>
+            </tr>
+            <tr>
+                <td>Fecha última</td>
+                <td>{{ estado_mes.fecha_ultima }}</td>
+            </tr>
+            <tr>
+                <td>Total líneas pedido</td>
+                <td class="celda-numerica">{{ estado_mes.total_pedido }}</td>
+            </tr>
+            <tr>
+                <td>Total líneas asignadas</td>
+                <td class="celda-numerica">{{ estado_mes.total_asignado }}</td>
+            </tr>
+            <tr>
+                <td>Total faltante</td>
+                <td class="celda-numerica">{{ estado_mes.total_pedido - estado_mes.total_asignado }}</td>
+            </tr>
+            <tr>
+                <td>Fill Rate %</td>
+                <td class="celda-numerica">{{ estado_mes.fill_rate_pct }} %</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="btn-grupo">
+    <a href="#" class="btn btn-secundario">📥 Descargar Resumen del Mes (Excel)</a>
+    <a href="#" class="btn btn-secundario">📄 Descargar Reporte (PDF)</a>
+</div>
+
+{% else %}
+<div class="sin-datos">
+    <h3>No hay datos para el mes seleccionado</h3>
+    <p>No se encontraron archivos de pedidos para este mes y año.</p>
+    <p>Asegúrese de que existan archivos con formato: <code>Pedido DD-mm-YYYY.xlsx</code></p>
+</div>
+{% endif %}
+
+<script>
+    function cambiarMes() {
+        var mes = document.getElementById('mes-select').value;
+        var ano = document.getElementById('ano-select').value;
+        window.location.href = '/analisis/mes?mes=' + mes + '&ano=' + ano;
+    }
+
+    function cambiarAno() {
+        var mes = document.getElementById('mes-select').value;
+        var ano = document.getElementById('ano-select').value;
+        window.location.href = '/analisis/mes?mes=' + mes + '&ano=' + ano;
+    }
+</script>
+{% endblock %}

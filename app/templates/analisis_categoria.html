@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}FillRateRetail - Faltante por Categoría{% endblock %}
+
+{% block contenido %}
+{% if alerta_ia_no_disponible %}
+<div class="alert-banner">
+    ⚠️ {{ alerta_ia_no_disponible }}
+</div>
+{% endif %}
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('main.inicio') }}" class="btn btn-secundario">← Volver al Tablero</a>
+</div>
+
+{% if analisis_categoria %}
+<div class="contadores">
+    <div class="contador">
+        <div class="etiqueta">Total Filas Globales</div>
+        <div class="valor">{{ analisis_categoria.total_filas_global }}</div>
+        <div class="subvalor">Todos los archivos</div>
+    </div>
+    <div class="contador">
+        <div class="etiqueta">Total Faltante Global</div>
+        <div class="valor">{{ analisis_categoria.total_faltante_global }}</div>
+        <div class="subvalor">Pedido − Asignado</div>
+    </div>
+    <div class="contador">
+        <div class="etiqueta">Total Sin Asignar</div>
+        <div class="valor">{{ analisis_categoria.total_sin_asignar_global }}</div>
+        <div class="subvalor">Columna J</div>
+    </div>
+</div>
+
+<!-- Clasificación 1: Total completo -->
+<div class="seccion">
+    <h2>1. Clasificación Completa por Categoría</h2>
+    <p>Todas las filas por categoría con su porcentaje sobre el total global.</p>
+    <div class="filtro-tabla">
+        <label for="filtro-cat-completa">Filtrar categoría:</label>
+        <input type="text" id="filtro-cat-completa" placeholder="Escriba para filtrar...">
+    </div>
+    <table id="tabla-cat-completa">
+        <thead>
+            <tr>
+                <th>Categoría (Col. A)</th>
+                <th class="celda-numerica">Total Filas</th>
+                <th class="celda-numerica">% Filas</th>
+                <th class="celda-numerica">Total Pedido</th>
+                <th class="celda-numerica">Total Asignado</th>
+                <th class="celda-numerica">Total Faltante</th>
+                <th class="celda-numerica">% Faltante</th>
+                <th class="celda-numerica">Total Sin Asignar</th>
+                <th class="celda-numerica">% Sin Asignar</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for fila in analisis_categoria.total_por_categoria %}
+            <tr>
+                <td>{{ fila.categoria }}</td>
+                <td class="celda-numerica">{{ fila.total_filas }}</td>
+                <td class="celda-numerica">{{ fila.pct_filas }} %</td>
+                <td class="celda-numerica">{{ fila.total_pedido }}</td>
+                <td class="celda-numerica">{{ fila.total_asignado }}</td>
+                <td class="celda-numerica">{{ fila.total_faltante }}</td>
+                <td class="celda-numerica">{{ fila.pct_faltante }} %</td>
+                <td class="celda-numerica">{{ fila.total_sin_asignar }}</td>
+                <td class="celda-numerica">{{ fila.pct_sin_asignar }} %</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Clasificación 2: Parciales -->
+<div class="seccion">
+    <h2>2. Clasificación Parciales (con Faltante > 0)</h2>
+    <p>Solo filas que tienen faltante, con su porcentaje sobre el total de filas con faltante.</p>
+    <div class="filtro-tabla">
+        <label for="filtro-cat-parciales">Filtrar categoría:</label>
+        <input type="text" id="filtro-cat-parciales" placeholder="Escriba para filtrar...">
+    </div>
+    <table id="tabla-cat-parciales">
+        <thead>
+            <tr>
+                <th>Categoría (Col. A)</th>
+                <th class="celda-numerica">Filas con Faltante</th>
+                <th class="celda-numerica">% Filas Faltante</th>
+                <th class="celda-numerica">Total Faltante</th>
+                <th class="celda-numerica">% Faltante Parciales</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for fila in analisis_categoria.parciales_por_categoria %}
+            <tr>
+                <td>{{ fila.categoria }}</td>
+                <td class="celda-numerica">{{ fila.filas_con_faltante }}</td>
+                <td class="celda-numerica">{{ fila.pct_filas_faltante }} %</td>
+                <td class="celda-numerica">{{ fila.total_faltante }}</td>
+                <td class="celda-numerica">{{ fila.pct_faltante_parciales }} %</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p><strong>Resumen:</strong> {{ analisis_categoria.total_filas_faltante }} filas con faltante · Total faltante parciales: {{ analisis_categoria.total_faltante_parciales }}</p>
+</div>
+
+<div class="btn-grupo">
+    <a href="#" class="btn btn-secundario">📥 Descargar Análisis por Categoría (Excel)</a>
+</div>
+
+{% else %}
+<div class="sin-datos">
+    <h3>No hay datos de categorías disponibles</h3>
+    <p>No se encontraron archivos de pedidos en la carpeta de insumos.</p>
+    <p>Asegúrese de que existan archivos con formato: <code>Pedido DD-mm-YYYY.xlsx</code></p>
+</div>
+{% endif %}
+
+<script>
+    function filtrarTabla(inputId, tablaId) {
+        var input = document.getElementById(inputId);
+        var tabla = document.getElementById(tablaId);
+        if (!input || !tabla) return;
+
+        input.addEventListener('keyup', function() {
+            var filtro = input.value.toUpperCase();
+            var filas = tabla.getElementsByTagName('tr');
+            for (var i = 1; i < filas.length; i++) {
+                var celdas = filas[i].getElementsByTagName('td');
+                var coincidencia = false;
+                for (var j = 0; j < celdas.length; j++) {
+                    if (celdas[j].textContent.toUpperCase().indexOf(filtro) > -1) {
+                        coincidencia = true;
+                        break;
+                    }
+                }
+                filas[i].style.display = coincidencia ? '' : 'none';
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        filtrarTabla('filtro-cat-completa', 'tabla-cat-completa');
+        filtrarTabla('filtro-cat-parciales', 'tabla-cat-parciales');
+    });
+</script>
+{% endblock %}

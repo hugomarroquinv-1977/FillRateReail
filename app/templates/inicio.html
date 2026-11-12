@@ -2,181 +2,342 @@
 
 {% block title %}FillRateRetail - Tablero Gerencial{% endblock %}
 
-{% block header_title %}FillRateRetail{% endblock %}
-{% block header_subtitle %}Tablero Gerencial - Análisis de Fill Rate y Abastecimiento Comercial{% endblock %}
-
-{% block alerta %}
+{% block contenido %}
+<!-- Alerta si IA no disponible -->
 {% if alerta_ia_no_disponible %}
 <div class="alert-banner">
     ⚠️ {{ alerta_ia_no_disponible }}
 </div>
 {% endif %}
-{% endblock %}
 
-{% block contenido %}
-<div class="contadores">
-    <div class="contador rojo">
-        <div class="etiqueta">Fill Rate General</div>
-        <div class="valor">{{ fill_rate_general }} %</div>
-        <div class="subvalor">Cumplimiento consolidado de pedidos</div>
-    </div>
-    <div class="contador rojo">
-        <div class="etiqueta">Kilos Faltantes Totales</div>
-        <div class="valor">{{ kilos_faltantes_totales }} kg</div>
-        <div class="subvalor">Cantidad no entregada</div>
-    </div>
-    <div class="contador amarillo">
-        <div class="etiqueta">Kilos Solicitados</div>
-        <div class="valor">{{ kilos_solicitados_totales }} kg</div>
-        <div class="subvalor">Cantidad pedida en el período</div>
-    </div>
-    <div class="contador verde">
-        <div class="etiqueta">Kilos Entregados</div>
-        <div class="valor">{{ kilos_entregados_totales }} kg</div>
-        <div class="subvalor">Cantidad recibida en el período</div>
-    </div>
-</div>
+<!-- ============================================
+     TAB 1: FILL RATE DIARIO (ÚLTIMA FECHA)
+     ============================================ -->
+<div id="tab-inicio" class="tab-content active">
 
-<div class="grid-2">
-    <div class="seccion-tabla">
-        <h2>Fill Rate por Categoría</h2>
-        <div class="filtro-tabla">
-            <label for="filtro-categoria">Filtrar categoría:</label>
-            <input type="text" id="filtro-categoria" placeholder="Escriba para filtrar..." data-filtro-input="filtro-categoria" data-filtro-tabla="tabla-categoria">
+    <!-- Botón de actualizar -->
+    <div style="margin-bottom: 20px;">
+        <button class="btn btn-exito" id="btn-actualizar" onclick="actualizarAnalisis()">
+            🔄 Actualizar Análisis Diario
+        </button>
+    </div>
+
+    {% if estado_ultimo %}
+    <!-- Contadores grandes -->
+    <div class="contadores">
+        <div class="contador">
+            <div class="etiqueta">Total Líneas de Pedido</div>
+            <div class="valor" id="total-pedido">{{ estado_ultimo.total_pedido }}</div>
+            <div class="subvalor">Archivo: {{ estado_ultimo.fecha }}</div>
         </div>
-        <table id="tabla-categoria">
-            <thead>
-                <tr>
-                    <th>Categoría</th>
-                    <th class="celda-numerica">Pedido kg</th>
-                    <th class="celda-numerica">Entrega kg</th>
-                    <th class="celda-numerica">Faltante kg</th>
-                    <th class="celda-numerica">Fill Rate %</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for fila in datos_por_categoria %}
-                <tr>
-                    <td>{{ fila.categoria }}</td>
-                    <td class="celda-numerica">{{ fila.pedido_kg }}</td>
-                    <td class="celda-numerica">{{ fila.entrega_kg }}</td>
-                    <td class="celda-numerica">{{ fila.faltante_kg }}</td>
-                    <td class="celda-numerica">{{ fila.fill_rate_pct }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% if datos_por_categoria | length == 0 %}
-        <div class="texto-centrado">No hay datos de categoría disponibles.</div>
-        {% endif %}
+        <div class="contador">
+            <div class="etiqueta">Total Líneas Asignadas</div>
+            <div class="valor" id="total-asignado">{{ estado_ultimo.total_asignado }}</div>
+            <div class="subvalor">Archivo: {{ estado_ultimo.fecha }}</div>
+        </div>
+        <div class="contador {% if estado_ultimo.fill_rate_pct >= 90 %}verde{% elif estado_ultimo.fill_rate_pct >= 70 %}amarillo{% else %}rojo{% endif %}">
+            <div class="etiqueta">Fill Rate %</div>
+            <div class="valor" id="fill-rate-pct">{{ estado_ultimo.fill_rate_pct }} %</div>
+            <div class="subvalor">Asignado / Pedido × 100</div>
+        </div>
     </div>
 
-    <div class="seccion-tabla">
-        <h2>Fill Rate por Centro de Carne</h2>
+    <!-- Tabla por Centro de Carne -->
+    <div class="seccion">
+        <h2>Detalle por Centro de Carne (Columna C)</h2>
         <div class="filtro-tabla">
-            <label for="filtro-centro">Filtrar centro:</label>
-            <input type="text" id="filtro-centro" placeholder="Escriba para filtrar..." data-filtro-input="filtro-centro" data-filtro-tabla="tabla-centro">
+            <label for="filtro-centro-diario">Filtrar centro:</label>
+            <input type="text" id="filtro-centro-diario" placeholder="Escriba para filtrar...">
         </div>
-        <table id="tabla-centro">
+        <table id="tabla-centro-diario">
             <thead>
                 <tr>
                     <th>Centro de Carne</th>
-                    <th class="celda-numerica">Pedido kg</th>
-                    <th class="celda-numerica">Entrega kg</th>
-                    <th class="celda-numerica">Faltante kg</th>
+                    <th class="celda-numerica">Pedido</th>
+                    <th class="celda-numerica">Asignado</th>
+                    <th class="celda-numerica">Faltante</th>
                     <th class="celda-numerica">Fill Rate %</th>
                 </tr>
             </thead>
             <tbody>
-                {% for fila in datos_por_centro %}
+                {% for fila in estado_ultimo.datos_por_centro %}
                 <tr>
-                    <td>{{ fila.centro }}</td>
-                    <td class="celda-numerica">{{ fila.pedido_kg }}</td>
-                    <td class="celda-numerica">{{ fila.entrega_kg }}</td>
-                    <td class="celda-numerica">{{ fila.faltante_kg }}</td>
-                    <td class="celda-numerica">{{ fila.fill_rate_pct }}</td>
+                    <td>{{ fila.centro_carne }}</td>
+                    <td class="celda-numerica">{{ fila.total_pedido }}</td>
+                    <td class="celda-numerica">{{ fila.total_asignado }}</td>
+                    <td class="celda-numerica">{{ fila.total_faltante }}</td>
+                    <td class="celda-numerica">{{ fila.fill_rate_pct }} %</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        {% if datos_por_centro | length == 0 %}
+        {% if estado_ultimo.datos_por_centro | length == 0 %}
         <div class="texto-centrado">No hay datos de Centro de Carne disponibles.</div>
         {% endif %}
     </div>
-</div>
 
-<div class="seccion-tabla">
-    <h2>Productos con Faltantes Recurrentes</h2>
-    <div class="filtro-tabla">
-        <label for="filtro-recurrentes">Filtrar producto:</label>
-        <input type="text" id="filtro-recurrentes" placeholder="Escriba para filtrar..." data-filtro-input="filtro-recurrentes" data-filtro-tabla="tabla-recurrentes">
+    <!-- Botón descargar -->
+    <div class="btn-grupo">
+        <a href="#" class="btn btn-secundario">📥 Descargar Detalle (Excel)</a>
+        <a href="#" class="btn btn-secundario">📄 Descargar Reporte (PDF)</a>
     </div>
-    <table id="tabla-recurrentes">
-        <thead>
-            <tr>
-                <th>Producto</th>
-                <th>Código</th>
-                <th>Categoría</th>
-                <th class="celda-numerica">Faltante Total kg</th>
-                <th class="celda-numerica">Días con Faltante</th>
-                <th>Prioridad</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for fila in datos_recurrentes %}
-            <tr>
-                <td>{{ fila.producto }}</td>
-                <td>{{ fila.codigo }}</td>
-                <td>{{ fila.categoria }}</td>
-                <td class="celda-numerica">{{ fila.faltante_total_kg }}</td>
-                <td class="celda-numerica">{{ fila.dias_con_faltante }}</td>
-                <td><span class="badge badge-alto">Alta</span></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% if datos_recurrentes | length == 0 %}
-    <div class="texto-centrado">No se detectaron productos con faltantes recurrentes.</div>
-    {% endif %}
-</div>
 
-<div class="seccion-tabla">
-    <h2>Alertas del Agente de IA</h2>
-    {% if alertas_ia %}
-    <div class="filtro-tabla">
-        <label for="filtro-alertas">Filtrar alerta:</label>
-        <input type="text" id="filtro-alertas" placeholder="Escriba para filtrar..." data-filtro-input="filtro-alertas" data-filtro-tabla="tabla-alertas">
-    </div>
-    <table id="tabla-alertas">
-        <thead>
-            <tr>
-                <th>Producto</th>
-                <th>Centro</th>
-                <th>Tipo</th>
-                <th>Prioridad</th>
-                <th>Recomendación</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for alerta in alertas_ia %}
-            <tr>
-                <td>{{ alerta.producto }}</td>
-                <td>{{ alerta.centro_carne }}</td>
-                <td>{{ alerta.tipo }}</td>
-                <td><span class="badge badge-{{ 'alto' if alerta.prioridad == 'Alta' else 'medio' if alerta.prioridad == 'Media' else 'bajo' }}">{{ alerta.prioridad }}</span></td>
-                <td>{{ alerta.recomendacion }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
     {% else %}
-    <div class="texto-centrado">No hay alertas del agente de IA disponibles.</div>
+    <div class="sin-datos">
+        <h3>No hay datos disponibles</h3>
+        <p>No se encontraron archivos de pedidos en la carpeta de insumos.</p>
+        <p>Asegúrese de que existan archivos con formato: <code>Pedido DD-mm-YYYY.xlsx</code></p>
+    </div>
     {% endif %}
 </div>
 
-<div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
-    <a href="{{ url_for('main.inicio') }}" class="btn btn-secundario">Actualizar Análisis</a>
-    <a href="#" class="btn">Descargar Excel</a>
-    <a href="#" class="btn">Descargar PDF</a>
+<!-- ============================================
+     TAB 2: FILL RATE ACUMULADO DEL MES
+     ============================================ -->
+<div id="tab-mes" class="tab-content">
+    {% if estado_mes %}
+    <div class="selector-periodo">
+        <div>
+            <label>Mes:</label>
+            <select id="mes-select" onchange="cambiarMes()">
+                {% for m, nombre in meses %}
+                <option value="{{ m }}" {% if m == mes_seleccionado %}selected{% endif %}>{{ nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label>Año:</label>
+            <select id="ano-select" onchange="cambiarAno()">
+                {% for a in anos %}
+                <option value="{{ a }}" {% if a == ano_seleccionado %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="contadores">
+        <div class="contador">
+            <div class="etiqueta">Total Líneas de Pedido (Mes)</div>
+            <div class="valor">{{ estado_mes.total_pedido }}</div>
+            <div class="subvalor">{{ estado_mes.fecha_primera }} al {{ estado_mes.fecha_ultima }}</div>
+        </div>
+        <div class="contador">
+            <div class="etiqueta">Total Líneas Asignadas (Mes)</div>
+            <div class="valor">{{ estado_mes.total_asignado }}</div>
+            <div class="subvalor">{{ estado_mes.dias_con_datos }} días con datos</div>
+        </div>
+        <div class="contador {% if estado_mes.fill_rate_pct >= 90 %}verde{% elif estado_mes.fill_rate_pct >= 70 %}amarillo{% else %}rojo{% endif %}">
+            <div class="etiqueta">Fill Rate % Acumulado</div>
+            <div class="valor">{{ estado_mes.fill_rate_pct }} %</div>
+            <div class="subvalor">Asignado / Pedido × 100</div>
+        </div>
+    </div>
+
+    <div class="seccion">
+        <h2>Resumen del Mes</h2>
+        <p>Este análisis acumula todos los archivos de pedidos desde el día 1 del mes seleccionado hasta la última fecha disponible en la carpeta de insumos.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Indicador</th>
+                    <th class="celda-numerica">Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Días con archivos</td>
+                    <td class="celda-numerica">{{ estado_mes.dias_con_datos }}</td>
+                </tr>
+                <tr>
+                    <td>Fecha primera</td>
+                    <td>{{ estado_mes.fecha_primera }}</td>
+                </tr>
+                <tr>
+                    <td>Fecha última</td>
+                    <td>{{ estado_mes.fecha_ultima }}</td>
+                </tr>
+                <tr>
+                    <td>Total líneas pedido</td>
+                    <td class="celda-numerica">{{ estado_mes.total_pedido }}</td>
+                </tr>
+                <tr>
+                    <td>Total líneas asignadas</td>
+                    <td class="celda-numerica">{{ estado_mes.total_asignado }}</td>
+                </tr>
+                <tr>
+                    <td>Total faltante</td>
+                    <td class="celda-numerica">{{ estado_mes.total_pedido - estado_mes.total_asignado }}</td>
+                </tr>
+                <tr>
+                    <td>Fill Rate %</td>
+                    <td class="celda-numerica">{{ estado_mes.fill_rate_pct }} %</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="sin-datos">
+        <h3>No hay datos para el mes seleccionado</h3>
+        <p>No se encontraron archivos de pedidos para este mes y año.</p>
+    </div>
+    {% endif %}
 </div>
+
+<!-- ============================================
+     TAB 3: FALTANTE POR CATEGORÍA
+     ============================================ -->
+<div id="tab-categoria" class="tab-content">
+    {% if analisis_categoria %}
+    <div class="contadores">
+        <div class="contador">
+            <div class="etiqueta">Total Filas Globales</div>
+            <div class="valor">{{ analisis_categoria.total_filas_global }}</div>
+            <div class="subvalor">Todos los archivos</div>
+        </div>
+        <div class="contador">
+            <div class="etiqueta">Total Faltante Global</div>
+            <div class="valor">{{ analisis_categoria.total_faltante_global }}</div>
+            <div class="subvalor">Pedido − Asignado</div>
+        </div>
+        <div class="contador">
+            <div class="etiqueta">Total Sin Asignar</div>
+            <div class="valor">{{ analisis_categoria.total_sin_asignar_global }}</div>
+            <div class="subvalor">Columna J</div>
+        </div>
+    </div>
+
+    <!-- Clasificación 1: Total completo -->
+    <div class="seccion">
+        <h2>1. Clasificación Completa por Categoría</h2>
+        <p>Todas las filas por categoría con su porcentaje sobre el total.</p>
+        <div class="filtro-tabla">
+            <label for="filtro-cat-completa">Filtrar categoría:</label>
+            <input type="text" id="filtro-cat-completa" placeholder="Escriba para filtrar...">
+        </div>
+        <table id="tabla-cat-completa">
+            <thead>
+                <tr>
+                    <th>Categoría (Col. A)</th>
+                    <th class="celda-numerica">Total Filas</th>
+                    <th class="celda-numerica">% Filas</th>
+                    <th class="celda-numerica">Total Pedido</th>
+                    <th class="celda-numerica">Total Asignado</th>
+                    <th class="celda-numerica">Total Faltante</th>
+                    <th class="celda-numerica">% Faltante</th>
+                    <th class="celda-numerica">Total Sin Asignar</th>
+                    <th class="celda-numerica">% Sin Asignar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in analisis_categoria.total_por_categoria %}
+                <tr>
+                    <td>{{ fila.categoria }}</td>
+                    <td class="celda-numerica">{{ fila.total_filas }}</td>
+                    <td class="celda-numerica">{{ fila.pct_filas }} %</td>
+                    <td class="celda-numerica">{{ fila.total_pedido }}</td>
+                    <td class="celda-numerica">{{ fila.total_asignado }}</td>
+                    <td class="celda-numerica">{{ fila.total_faltante }}</td>
+                    <td class="celda-numerica">{{ fila.pct_faltante }} %</td>
+                    <td class="celda-numerica">{{ fila.total_sin_asignar }}</td>
+                    <td class="celda-numerica">{{ fila.pct_sin_asignar }} %</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Clasificación 2: Parciales -->
+    <div class="seccion">
+        <h2>2. Clasificación Parciales (con Faltante > 0)</h2>
+        <p>Solo filas que tienen faltante, con su porcentaje sobre el total de filas con faltante.</p>
+        <div class="filtro-tabla">
+            <label for="filtro-cat-parciales">Filtrar categoría:</label>
+            <input type="text" id="filtro-cat-parciales" placeholder="Escriba para filtrar...">
+        </div>
+        <table id="tabla-cat-parciales">
+            <thead>
+                <tr>
+                    <th>Categoría (Col. A)</th>
+                    <th class="celda-numerica">Filas con Faltante</th>
+                    <th class="celda-numerica">% Filas Faltante</th>
+                    <th class="celda-numerica">Total Faltante</th>
+                    <th class="celda-numerica">% Faltante Parciales</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in analisis_categoria.parciales_por_categoria %}
+                <tr>
+                    <td>{{ fila.categoria }}</td>
+                    <td class="celda-numerica">{{ fila.filas_con_faltante }}</td>
+                    <td class="celda-numerica">{{ fila.pct_filas_faltante }} %</td>
+                    <td class="celda-numerica">{{ fila.total_faltante }}</td>
+                    <td class="celda-numerica">{{ fila.pct_faltante_parciales }} %</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p><strong>Resumen:</strong> {{ analisis_categoria.total_filas_faltante }} filas con faltante · Total faltante parciales: {{ analisis_categoria.total_faltante_parciales }}</p>
+    </div>
+
+    <div class="btn-grupo">
+        <a href="#" class="btn btn-secundario">📥 Descargar Análisis por Categoría (Excel)</a>
+    </div>
+
+    {% else %}
+    <div class="sin-datos">
+        <h3>No hay datos de categorías disponibles</h3>
+        <p>No se encontraron archivos de pedidos en la carpeta de insumos.</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // Función para cambiar mes en el selector
+    function cambiarMes() {
+        var mes = document.getElementById('mes-select').value;
+        var ano = document.getElementById('ano-select').value;
+        window.location.href = '/analisis/mes?mes=' + mes + '&ano=' + ano;
+    }
+
+    function cambiarAno() {
+        var mes = document.getElementById('mes-select').value;
+        var ano = document.getElementById('ano-select').value;
+        window.location.href = '/analisis/mes?mes=' + mes + '&ano=' + ano;
+    }
+
+    // Filtros de tabla en JavaScript nativo
+    function filtrarTabla(inputId, tablaId) {
+        var input = document.getElementById(inputId);
+        var tabla = document.getElementById(tablaId);
+        if (!input || !tabla) return;
+
+        input.addEventListener('keyup', function() {
+            var filtro = input.value.toUpperCase();
+            var filas = tabla.getElementsByTagName('tr');
+            for (var i = 1; i < filas.length; i++) {
+                var celdas = filas[i].getElementsByTagName('td');
+                var coincidencia = false;
+                for (var j = 0; j < celdas.length; j++) {
+                    if (celdas[j].textContent.toUpperCase().indexOf(filtro) > -1) {
+                        coincidencia = true;
+                        break;
+                    }
+                }
+                filas[i].style.display = coincidencia ? '' : 'none';
+            }
+        });
+    }
+
+    // Inicializar filtros cuando el DOM esté listo
+    document.addEventListener('DOMContentLoaded', function() {
+        // Filtrar tabla de centro de carne (tab 1)
+        filtrarTabla('filtro-centro-diario', 'tabla-centro-diario');
+
+        // Filtrar tabla de categoría completa (tab 3)
+        filtrarTabla('filtro-cat-completa', 'tabla-cat-completa');
+
+        // Filtrar tabla de categorías parciales (tab 3)
+        filtrarTabla('filtro-cat-parciales', 'tabla-cat-parciales');
+    });
+</script>
 {% endblock %}
