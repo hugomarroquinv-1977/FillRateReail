@@ -15,11 +15,20 @@
      ============================================ -->
 <div id="tab-inicio" class="tab-content active">
 
-    <!-- Botón de actualizar -->
-    <div style="margin-bottom: 20px;">
+    <!-- Botón de actualizar y subir archivo -->
+    <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
         <button class="btn btn-exito" id="btn-actualizar" onclick="actualizarAnalisis()">
             🔄 Actualizar Análisis Diario
         </button>
+
+        <div class="subida-archivo">
+            <label for="input-archivo" class="btn btn-secundario" style="cursor: pointer;">
+                📁 Subir Archivo Excel
+            </label>
+            <input type="file" id="input-archivo" accept=".xlsx" style="display: none;" onchange="subirArchivo(this)">
+        </div>
+
+        <div id="mensaje-subida" style="margin-left: 10px; font-size: 13px;"></div>
     </div>
 
     {% if estado_ultimo %}
@@ -339,5 +348,56 @@
         // Filtrar tabla de categorías parciales (tab 3)
         filtrarTabla('filtro-cat-parciales', 'tabla-cat-parciales');
     });
+
+    // Función para subir archivo Excel
+    function subirArchivo(input) {
+        var archivo = input.files[0];
+        if (!archivo) return;
+
+        var btnLabel = input.previousElementSibling;
+        var textoOriginal = btnLabel.innerHTML;
+        var mensajeDiv = document.getElementById('mensaje-subida');
+
+        // Mostrar estado de carga
+        btnLabel.innerHTML = "⏳ Subiendo...";
+        btnLabel.disabled = true;
+        mensajeDiv.innerHTML = "";
+        mensajeDiv.style.color = "";
+
+        var formData = new FormData();
+        formData.append("archivo", archivo);
+
+        fetch("/subir-archivo", {
+            method: "POST",
+            body: formData,
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.exito) {
+                mensajeDiv.innerHTML = "✅ " + data.mensaje;
+                mensajeDiv.style.color = "#16a34a";
+                btnLabel.innerHTML = "✅ " + textoOriginal;
+                // Resetear input
+                input.value = "";
+
+                // Recargar la página después de 1.5 segundos para mostrar los nuevos datos
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                mensajeDiv.innerHTML = "❌ " + data.error;
+                mensajeDiv.style.color = "#dc2626";
+                btnLabel.innerHTML = textoOriginal;
+            }
+        })
+        .catch(error => {
+            mensajeDiv.innerHTML = "❌ Error de conexión: " + error;
+            mensajeDiv.style.color = "#dc2626";
+            btnLabel.innerHTML = textoOriginal;
+        })
+        .finally(() => {
+            btnLabel.disabled = false;
+        });
+    }
 </script>
 {% endblock %}

@@ -31,8 +31,17 @@ import pandas as pd
 # Carpeta de insumos (solo lectura, nunca se modifica)
 INSUMOS_PATH = Path("Insumos")
 
+# Carpeta de archivos cargados por el usuario (temporal, puede ser efímera en Render)
+CARGA_TEMPORAL_PATH = Path("datos") / "carga_temporal"
+
 # Patrón para nombres de archivo: Pedido DD-mm-YYYY.xlsx
 PATRON_ARCHIVO_PEDIDO = re.compile(r"^Pedido (\d{2})-(\d{2})-(\d{4})\.xlsx$")
+
+
+def asegurar_carpeta_carga_temporal() -> Path:
+    """Crea la carpeta de carga temporal si no existe."""
+    CARGA_TEMPORAL_PATH.mkdir(parents=True, exist_ok=True)
+    return CARGA_TEMPORAL_PATH
 
 
 def interpretar_fecha_nombre_archivo(nombre_archivo: str) -> Optional[datetime]:
@@ -48,22 +57,45 @@ def interpretar_fecha_nombre_archivo(nombre_archivo: str) -> Optional[datetime]:
         return None
 
 
-def listar_archivos_pedido(carpeta: Path = INSUMOS_PATH) -> list[tuple[datetime, Path]]:
+def listar_archivos_pedido(
+    carpeta_insumos: Path = INSUMOS_PATH,
+    carpeta_carga: Path = CARGA_TEMPORAL_PATH,
+) -> list[tuple[datetime, Path]]:
     """Lista todos los archivos Pedido DD-mm-YYYY.xlsx con su fecha interpretada.
+
+    Busca en ambas carpetas: insumos/ (repositorio) y datos/carga_temporal/ (subidos por usuario).
 
     Ordena por fecha descendente (más reciente primero).
     """
-    if not carpeta.exists():
-        return []
-
     archivos_con_fecha = []
-    for archivo in carpeta.glob("Pedido *.xlsx"):
-        fecha = interpretar_fecha_nombre_archivo(archivo.name)
-        if fecha is not None:
-            archivos_con_fecha.append((fecha, archivo))
+
+    for carpeta in [carpeta_insumos, carpeta_carga]:
+        if not carpeta.exists():
+            continue
+        for archivo in carpeta.glob("Pedido *.xlsx"):
+            fecha = interpretar_fecha_nombre_archivo(archivo.name)
+            if fecha is not None:
+                archivos_con_fecha.append((fecha, archivo))
 
     archivos_con_fecha.sort(key=lambda x: x[0], reverse=True)
     return archivos_con_fecha
+
+
+def guardar_archivo_cargado(contenido: bytes, nombre_archivo: str) -> Path:
+    """Guarda un archivo subido por el usuario en la carpeta temporal.
+
+    Args:
+        contenido: Bytes del archivo.
+        nombre_archivo: Nombre del archivo (debe ser Pedido DD-mm-YYYY.xlsx).
+
+    Returns:
+        Ruta del archivo guardado.
+    """
+    carpeta = asegurar_carpeta_carga_temporal()
+    ruta = carpeta / nombre_archivo
+    with open(ruta, "wb") as f:
+        f.write(contenido)
+    return ruta
 
 
 def leer_archivo_excel(ruta: Path) -> Optional[pd.DataFrame]:
@@ -78,13 +110,17 @@ def leer_archivo_excel(ruta: Path) -> Optional[pd.DataFrame]:
         return None
 
 
-def obtener_archivo_mas_reciente(carpeta: Path = INSUMOS_PATH) -> Optional[tuple[datetime, Path, pd.DataFrame]]:
+def obtener_archivo_mas_reciente(
+    carpeta_insumos: Path = INSUMOS_PATH,
+    carpeta_carga: Path = CARGA_TEMPORAL_PATH,
+) -> Optional[tuple[datetime, Path, pd.DataFrame]]:
     """Obtiene el archivo Pedido más reciente que se pueda leer correctamente.
 
     Intenta leer los archivos en orden descendente por fecha.
     Si el más reciente está bloqueado, prueba con el siguiente.
+    Busca en ambas carpetas: insumos/ y datos/carga_temporal/.
     """
-    archivos = listar_archivos_pedido(carpeta)
+    archivos = listar_archivos_pedido(carpeta_insumos, carpeta_carga)
     if not archivos:
         return None
 
@@ -96,24 +132,45 @@ def obtener_archivo_mas_reciente(carpeta: Path = INSUMOS_PATH) -> Optional[tuple
     return None
 
 
-def obtener_archivo_por_fecha(fecha_objetivo: datetime, carpeta: Path = INSUMOS_PATH) -> Optional[pd.DataFrame]:
-    """Lee el archivo Pedido para una fecha específica."""
+def obtener_archivo_por_fecha(
+    fecha_objetivo: datetime,
+    carpeta_insumos: Path = INSUMOS_PATH,
+    carpeta_carga: Path = CARGA_TEMPORAL_PATH,
+) -> Optional[pd.DataFrame]:
+    """Lee el archivo Pedido para una fecha específica.
+
+    Busca primero en la carpeta de carga temporal (archivos subidos por usuario)
+    y luego en la carpeta de insumos.
+    """
     nombre_esperado = f"Pedido {fecha_objetivo.day:02d}-{fecha_objetivo.month:02d}-{fecha_objetivo.year}.xlsx"
-    ruta = carpeta / nombre_esperado
 
-    if not ruta.exists():
-        return None
+    # Buscar primero en carga temporal
+    ruta = carpeta_carga / nombre_esperado
+    if ruta.exists():
+        return leer_archivo_excel(ruta)
 
-    return leer_archivo_excel(ruta)
+    # Luego en insumos
+    ruta = carpeta_insumos / nombre_esperado
+    if ruta.exists():
+        return leer_archivo_excel(ruta)
+
+    return None
 
 
-def leer_archivos_por_mes_ano(mes: int, ano: int, carpeta: Path = INSUMOS_PATH) -> list[tuple[datetime, pd.DataFrame]]:
+def leer_archivos_por_mes_ano(
+    mes: int,
+    ano: int,
+    carpeta_insumos: Path = INSUMOS_PATH,
+    carpeta_carga: Path = CARGA_TEMPORAL_PATH,
+) -> list[tuple[datetime, pd.DataFrame]]:
     """Lee todos los archivos Pedido de un mes y año específicos.
+
+    Busca en ambas carpetas: insumos/ y datos/carga_temporal/.
 
     Retorna lista de tuplas (fecha, dataframe) ordenada por fecha ascendente.
     """
     resultados = []
-    archivos = listar_archivos_pedido(carpeta)
+    archivos = listar_archivos_pedido(carpeta_insumos, carpeta_carga)
 
     for fecha, ruta in archivos:
         if fecha.month == mes and fecha.year == ano:
@@ -285,13 +342,18 @@ def agregar_estadisticas(estadisticas_lista: list[dict]) -> dict:
     }
 
 
-def obtener_estado_ultima_fecha(carpeta: Path = INSUMOS_PATH) -> Optional[dict]:
+def obtener_estado_ultima_fecha(
+    carpeta_insumos: Path = INSUMOS_PATH,
+    carpeta_carga: Path = CARGA_TEMPORAL_PATH,
+) -> Optional[dict]:
     """Obtiene el estado de Fill Rate de la fecha más reciente.
+
+    Busca en ambas carpetas: insumos/ y datos/carga_temporal/.
 
     Returns:
         Diccionario con fecha, conteos y fill rate, o None si no hay archivos.
     """
-    resultado = obtener_archivo_mas_reciente(carpeta)
+    resultado = obtener_archivo_mas_reciente(carpeta_insumos, carpeta_carga)
     if resultado is None:
         return None
 
@@ -325,20 +387,27 @@ def obtener_estado_ultima_fecha(carpeta: Path = INSUMOS_PATH) -> Optional[dict]:
     }
 
 
-def obtener_estado_mes_ano(mes: int, ano: int, carpeta: Path = INSUMOS_PATH) -> Optional[dict]:
+def obtener_estado_mes_ano(
+    mes: int,
+    ano: int,
+    carpeta_insumos: Path = INSUMOS_PATH,
+    carpeta_carga: Path = CARGA_TEMPORAL_PATH,
+) -> Optional[dict]:
     """Obtiene el estado acumulado de Fill Rate para un mes y año.
 
     Suma los conteos de todas las filas de todos los archivos del mes.
+    Busca en ambas carpetas: insumos/ y datos/carga_temporal/.
 
     Args:
         mes: Mes (1-12).
         ano: Año (ej. 2026).
-        carpeta: Carpeta donde buscar.
+        carpeta_insumos: Carpeta de insumos del repositorio.
+        carpeta_carga: Carpeta de carga temporal (archivos subidos por usuario).
 
     Returns:
         Diccionario con totales del mes, o None si no hay datos.
     """
-    archivos_mes = leer_archivos_por_mes_ano(mes, ano, carpeta)
+    archivos_mes = leer_archivos_por_mes_ano(mes, ano, carpeta_insumos, carpeta_carga)
 
     if not archivos_mes:
         return None
@@ -370,7 +439,10 @@ def obtener_estado_mes_ano(mes: int, ano: int, carpeta: Path = INSUMOS_PATH) -> 
     }
 
 
-def obtener_analisis_categoria(carpeta: Path = INSUMOS_PATH) -> Optional[dict]:
+def obtener_analisis_categoria(
+    carpeta_insumos: Path = INSUMOS_PATH,
+    carpeta_carga: Path = CARGA_TEMPORAL_PATH,
+) -> Optional[dict]:
     """Obtiene análisis de faltante por categoría (columna A = Descri Clase).
 
     Tres clasificaciones contando filas (no sumando valores):
@@ -378,13 +450,16 @@ def obtener_analisis_categoria(carpeta: Path = INSUMOS_PATH) -> Optional[dict]:
     2. Parciales: contar filas donde faltante > 0 (H < G y H != 0)
     3. Sin asignar (columna J): contar filas donde columna J tiene valor
 
+    Busca en ambas carpetas: insumos/ y datos/carga_temporal/.
+
     Args:
-        carpeta: Carpeta donde buscar los archivos.
+        carpeta_insumos: Carpeta de insumos del repositorio.
+        carpeta_carga: Carpeta de carga temporal (archivos subidos por usuario).
 
     Returns:
         Diccionario con las tres clasificaciones, o None si no hay datos.
     """
-    archivos = listar_archivos_pedido(carpeta)
+    archivos = listar_archivos_pedido(carpeta_insumos, carpeta_carga)
 
     if not archivos:
         return None

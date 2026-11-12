@@ -1,6 +1,8 @@
 """Controlador principal de la aplicación FillRateRetail."""
 
-from flask import Blueprint, render_template, jsonify, request
+from flask import Blueprint, render_template, jsonify, request, flash, redirect, url_for
+from werkzeug.utils import secure_filename
+import os
 
 main_bp = Blueprint("main", __name__)
 
@@ -113,3 +115,42 @@ def actualizar_analisis():
         "analisis_categoria": analisis_categoria,
         "timestamp": ahora.strftime("%d-%m-%Y %H:%M:%S"),
     })
+
+
+@main_bp.route("/subir-archivo", methods=["POST"])
+def subir_archivo():
+    """Endpoint para subir un archivo Excel de pedidos desde la página web.
+    Guarda el archivo en la carpeta temporal de carga para ser leído por la app.
+    """
+    from app.services.analisis_diario import (
+        guardar_archivo_cargado,
+        PATRON_ARCHIVO_PEDIDO,
+    )
+
+    if "archivo" not in request.files:
+        return jsonify({"error": "No se seleccionó ningún archivo"}), 400
+
+    archivo = request.files["archivo"]
+
+    if archivo.filename == "":
+        return jsonify({"error": "Nombre de archivo vacío"}), 400
+
+    # Validar nombre del archivo: Pedido DD-mm-YYYY.xlsx
+    nombre_seguro = secure_filename(archivo.filename)
+    if not PATRON_ARCHIVO_PEDIDO.match(nombre_seguro):
+        return jsonify({
+            "error": "Nombre de archivo inválido. Debe ser: Pedido DD-mm-YYYY.xlsx (ej: Pedido 07-11-2026.xlsx)"
+        }), 400
+
+    try:
+        contenido = archivo.read()
+        ruta_guardada = guardar_archivo_cargado(contenido, nombre_seguro)
+
+        return jsonify({
+            "exito": True,
+            "mensaje": f"Archivo '{nombre_seguro}' subido correctamente",
+            "archivo": nombre_seguro,
+            "ruta": str(ruta_guardada),
+        })
+    except Exception as e:
+        return jsonify({"error": f"Error al guardar archivo: {str(e)}"}), 500
